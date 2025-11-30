@@ -1,0 +1,25 @@
+.pill {
+  display: inline-block;
+  padding: 10px 16px;
+  border-radius: 9999px;
+  background: var(--pill-bg);
+  border: 1px solid var(--pill-border);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: #3a3552;
+  font-weight: 600;
+  transition: transform 0.08s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.pill:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  background: var(--pill-bg-hover);
+}
+.pillActive {
+  background: var(--pill-bg-active);
+  border-color: var(--pill-border-active);
+}
+.pillDisabled {
+  opacity: 0.5;
+  pointer-events: none;
+}

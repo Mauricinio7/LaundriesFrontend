@@ -1,0 +1,31 @@
+:root {
+  --bg-soft: #f5f1f9;
+
+  --ink: #1f2937;
+
+  --pill-bg: #ece7f3;
+  --pill-bg-hover: #e9e4f2;
+  --pill-bg-active: #e2dcf0;
+
+  --pill-border: #d9d3e6;
+  --pill-border-active: #c8c0e0;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.1);
+  --header-h: 74px;
+}
+
+body {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell,
+    Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  margin: 0;
+  background: var(--bg-soft);
+  color: var(--ink);
+}
+
+h1 {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #333;
+  margin: 1rem 0;
+}
