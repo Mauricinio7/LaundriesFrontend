@@ -32,7 +32,7 @@ const routes: RouteObject[] = [
             <SecondPage />
           </Suspense>
         ),
-      },
+      },  
     ],
   },
 ] satisfies RouteObject[];
