@@ -6,6 +6,7 @@ import { LoaderFallback } from "../../shared/ui/LoaderFallback";
 const App = lazy(() => import("../App"));
 const MainPage = lazy(() => import("../../pages/MainPage"));
 const SecondPage = lazy(() => import("../../pages/SecondPage"));
+const LoginPage = lazy(() => import("../../pages/LoginPage"));
 
 const Fallback = <p style={{ padding: 16 }}>Cargando…</p>;
 
@@ -32,7 +33,15 @@ const routes: RouteObject[] = [
             <SecondPage />
           </Suspense>
         ),
-      },  
+      },
+      {
+        path: PAGE_PATH.login,
+        element: (
+          <Suspense fallback={Fallback}>
+            <LoginPage />
+          </Suspense>
+        ),
+      },
     ],
   },
 ] satisfies RouteObject[];
