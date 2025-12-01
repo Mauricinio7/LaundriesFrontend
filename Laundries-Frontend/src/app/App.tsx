@@ -21,7 +21,11 @@ export default function App() {
               </PillLink>
             </div>
 
-            <div />
+            <div className={style.leftGroup}>
+              <PillLink to={PAGE_PATH.login} aria-label="Ir a iniciar sesión">
+                Iniciar sesión
+              </PillLink>
+            </div>
           </div>
         </header>
 
