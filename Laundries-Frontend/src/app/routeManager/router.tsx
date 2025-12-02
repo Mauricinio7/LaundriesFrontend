@@ -2,6 +2,7 @@ import { createBrowserRouter, type RouteObject } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { PAGE_PATH } from "./pages.paths";
 import { LoaderFallback } from "../../shared/ui/LoaderFallback";
+import { RequireAuth } from "./RequireAuth";
 
 const App = lazy(() => import("../App"));
 const MainPage = lazy(() => import("../../pages/MainPage"));
@@ -12,10 +13,21 @@ const Fallback = <p style={{ padding: 16 }}>Cargando…</p>;
 
 const routes: RouteObject[] = [
   {
+    path: PAGE_PATH.login,
     element: (
-      <Suspense fallback={<LoaderFallback />}>
-        <App />
+      <Suspense fallback={Fallback}>
+        <LoginPage />
       </Suspense>
+    ),
+  },
+
+  {
+    element: (
+      <RequireAuth>
+        <Suspense fallback={<LoaderFallback />}>
+          <App />
+        </Suspense>
+      </RequireAuth>
     ),
     children: [
       {
@@ -31,14 +43,6 @@ const routes: RouteObject[] = [
         element: (
           <Suspense fallback={Fallback}>
             <SecondPage />
-          </Suspense>
-        ),
-      },
-      {
-        path: PAGE_PATH.login,
-        element: (
-          <Suspense fallback={Fallback}>
-            <LoginPage />
           </Suspense>
         ),
       },
