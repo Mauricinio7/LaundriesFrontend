@@ -5,5 +5,12 @@ export const PAGE_PATH = {
   homeEmployee: "/homeemployee",
   orders: "/orders",
   cash: "/cash",
-  customers: "customers",
+  customers: "/customers",
+  homeManager: "/homemanager",
+  homeAdmin: "/homeadmin",
+  globalOrders: "/globalorders",
+  managerReports: "/managerreports",
+  employeeManagment: "/employeemanagment",
+  branches: "/brances",
+  adminReports: "/adminreports",
 } as const;

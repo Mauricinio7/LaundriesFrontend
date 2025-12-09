@@ -16,73 +16,66 @@ const HomeIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-const OrdersIcon = (props: React.SVGProps<SVGSVGElement>) => (
+const EmployeesIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="none" {...props}>
+    <circle cx="8" cy="9" r="3" className="stroke-sky-600" strokeWidth="2" />
+    <circle cx="16" cy="9" r="2.5" className="stroke-sky-400" strokeWidth="2" />
+    <path
+      d="M4.5 18c.7-2 2.2-3.5 3.5-3.5h0C9.3 14.5 10.8 16 11.5 18"
+      className="stroke-sky-500"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+    <path
+      d="M13.5 17.5c.6-1.6 1.7-2.7 3-2.7 1.3 0 2.4 1.1 3 2.7"
+      className="stroke-sky-300"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+const ReportsIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
     <rect
-      x="4"
+      x="5"
       y="3.5"
-      width="16"
+      width="14"
       height="17"
       rx="2"
       className="stroke-sky-600"
       strokeWidth="2"
     />
     <path
-      d="M8 8h8M8 12h5M8 16h4"
+      d="M9 7.5h6M9 11h4.5M9 14.5h3"
       className="stroke-sky-500"
       strokeWidth="2"
       strokeLinecap="round"
     />
-  </svg>
-);
-
-const CustomersIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="none" {...props}>
-    <circle cx="9" cy="9" r="3.2" className="stroke-sky-600" strokeWidth="2" />
     <path
-      d="M4.8 18.5c.8-2.1 2.4-3.5 4.2-3.5s3.4 1.4 4.2 3.5"
-      className="stroke-sky-500"
-      strokeWidth="2"
-      strokeLinecap="round"
-    />
-    <circle
-      cx="17"
-      cy="9.5"
-      r="2.3"
+      d="M9 18h2"
       className="stroke-sky-400"
       strokeWidth="1.8"
-    />
-    <path
-      d="M14.8 17.2c.6-1.5 1.7-2.5 3.1-2.5 1.4 0 2.5 1 3.1 2.5"
-      className="stroke-sky-300"
-      strokeWidth="1.8"
       strokeLinecap="round"
     />
   </svg>
 );
 
-const CashIcon = (props: React.SVGProps<SVGSVGElement>) => (
+const OrdersIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
     <rect
-      x="3.5"
-      y="6.5"
-      width="17"
-      height="11"
+      x="4"
+      y="4"
+      width="16"
+      height="16"
       rx="2"
       className="stroke-sky-600"
       strokeWidth="2"
     />
-    <circle
-      cx="12"
-      cy="12"
-      r="2.3"
+    <path
+      d="M8 9h8M8 12.5h6M8 16h4"
       className="stroke-sky-500"
       strokeWidth="2"
-    />
-    <path
-      d="M7 8.5h1.8M15.2 8.5H17M7 15.5h1.8M15.2 15.5H17"
-      className="stroke-sky-400"
-      strokeWidth="1.8"
       strokeLinecap="round"
     />
   </svg>
@@ -126,7 +119,7 @@ const BubblesBackground = () => (
   </svg>
 );
 
-export default function App() {
+export default function LayoutManager() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
@@ -149,20 +142,20 @@ export default function App() {
 
           <div className="relative z-10 flex items-center gap-3 px-4 pt-4 pb-6">
             <div className="h-12 w-12 rounded-2xl bg-sky-100 flex items-center justify-center">
-              <span className="text-sky-600 text-2xl font-semibold">L</span>
+              <span className="text-sky-600 text-2xl font-semibold">M</span>
             </div>
             <div
               className={`transition-opacity text-lg font-semibold text-slate-800 ${
                 expanded ? "opacity-100" : "opacity-0"
               }`}
             >
-              Laundries Admin
+              Manager Console
             </div>
           </div>
 
           <nav className="relative z-10 flex-1 flex flex-col gap-2 px-3">
             <NavLink
-              to={PAGE_PATH.homeEmployee}
+              to={PAGE_PATH.homeManager}
               className={({ isActive }) =>
                 [
                   "flex items-center gap-4 px-3 py-3 rounded-xl text-base font-semibold transition-colors",
@@ -183,7 +176,49 @@ export default function App() {
             </NavLink>
 
             <NavLink
-              to="/orders"
+              to={PAGE_PATH.employeeManagment}
+              className={({ isActive }) =>
+                [
+                  "flex items-center gap-4 px-3 py-3 rounded-xl text-base font-semibold transition-colors",
+                  isActive
+                    ? "bg-sky-100 text-sky-700"
+                    : "text-slate-500 hover:bg-sky-50 hover:text-sky-700",
+                ].join(" ")
+              }
+            >
+              <EmployeesIcon className="h-8 w-8 flex-shrink-0" />
+              <span
+                className={`whitespace-nowrap transition-opacity ${
+                  expanded ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                Empleados
+              </span>
+            </NavLink>
+
+            <NavLink
+              to={PAGE_PATH.managerReports}
+              className={({ isActive }) =>
+                [
+                  "flex items-center gap-4 px-3 py-3 rounded-xl text-base font-semibold transition-colors",
+                  isActive
+                    ? "bg-sky-100 text-sky-700"
+                    : "text-slate-500 hover:bg-sky-50 hover:text-sky-700",
+                ].join(" ")
+              }
+            >
+              <ReportsIcon className="h-8 w-8 flex-shrink-0" />
+              <span
+                className={`whitespace-nowrap transition-opacity ${
+                  expanded ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                Reportes
+              </span>
+            </NavLink>
+
+            <NavLink
+              to={PAGE_PATH.globalOrders}
               className={({ isActive }) =>
                 [
                   "flex items-center gap-4 px-3 py-3 rounded-xl text-base font-semibold transition-colors",
@@ -199,49 +234,7 @@ export default function App() {
                   expanded ? "opacity-100" : "opacity-0"
                 }`}
               >
-                Órdenes
-              </span>
-            </NavLink>
-
-            <NavLink
-              to="/customers"
-              className={({ isActive }) =>
-                [
-                  "flex items-center gap-4 px-3 py-3 rounded-xl text-base font-semibold transition-colors",
-                  isActive
-                    ? "bg-sky-100 text-sky-700"
-                    : "text-slate-500 hover:bg-sky-50 hover:text-sky-700",
-                ].join(" ")
-              }
-            >
-              <CustomersIcon className="h-8 w-8 flex-shrink-0" />
-              <span
-                className={`whitespace-nowrap transition-opacity ${
-                  expanded ? "opacity-100" : "opacity-0"
-                }`}
-              >
-                Clientes
-              </span>
-            </NavLink>
-
-            <NavLink
-              to="/cash"
-              className={({ isActive }) =>
-                [
-                  "flex items-center gap-4 px-3 py-3 rounded-xl text-base font-semibold transition-colors",
-                  isActive
-                    ? "bg-sky-100 text-sky-700"
-                    : "text-slate-500 hover:bg-sky-50 hover:text-sky-700",
-                ].join(" ")
-              }
-            >
-              <CashIcon className="h-8 w-8 flex-shrink-0" />
-              <span
-                className={`whitespace-nowrap transition-opacity ${
-                  expanded ? "opacity-100" : "opacity-0"
-                }`}
-              >
-                Caja
+                Pedidos
               </span>
             </NavLink>
           </nav>

@@ -12,13 +12,12 @@ export default function RoleBasedHomePage() {
   switch (user.role) {
     case "EMPLOYEE":
       return <Navigate to={PAGE_PATH.homeEmployee} replace />;
-
-    // cuando tengas más roles los vas agregando aquí:
-    // case "MANAGER":
-    //   return <Navigate to={PAGE_PATH.homeManager} replace />;
+    case "MANAGER":
+      return <Navigate to={PAGE_PATH.homeManager} replace />;
+    case "ADMIN":
+      return <Navigate to={PAGE_PATH.homeAdmin} replace />;
 
     default:
-      // por si llega un rol raro
       return <Navigate to={PAGE_PATH.homeEmployee} replace />;
   }
 }

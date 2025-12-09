@@ -4,16 +4,55 @@ import { PAGE_PATH } from "./pages.paths";
 import { LoaderFallback } from "../../shared/ui/LoaderFallback";
 import { RequireAuth } from "./RequireAuth";
 import { RequireRole } from "./RequireRole";
+import { useAuth } from "../../features/Login/AuthProvider";
 
-const App = lazy(() => import("../App"));
+const EmployeeLayout = lazy(() => import("../LayoutEmployee"));
+const ManagerLayout = lazy(() => import("../LayoutManager"));
+const AdminLayout = lazy(() => import("../LayoutAdmin"));
+
 const LoginPage = lazy(() => import("../../pages/LoginPage"));
 const HomeEmployeePage = lazy(() => import("../../pages/HomeEmployeePage"));
 const RoleBasedHomePage = lazy(() => import("./RoleBasedHomePage"));
 const OrdersPage = lazy(() => import("../../pages/OrdersPage"));
 const CustomersPage = lazy(() => import("../../pages/CustomersPage"));
 const CashPage = lazy(() => import("../../pages/CashPage"));
+const HomeManagerPage = lazy(() => import("../../pages/HomeManagerPage"));
+const GlobalOrdersPage = lazy(() => import("../../pages/GlobalOrdersPage"));
+const EmployeeManagementPage = lazy(
+  () => import("../../pages/EmployeeManagmentPage")
+);
+const ManagerReportsPage = lazy(() => import("../../pages/ManagerReportsPage"));
+const HomeAdminPage = lazy(() => import("../../pages/HomeAdminPage"));
+const AdminReportsPage = lazy(() => import("../../pages/AdminReportsPage"));
+const BranchesPage = lazy(() => import("../../pages/BranchesPage"));
 
 const Fallback = <p style={{ padding: 16 }}>Cargando…</p>;
+
+function RoleBasedLayout() {
+  const { user, isInitializing } = useAuth();
+
+  if (isInitializing) {
+    return <LoaderFallback />;
+  }
+
+  if (!user) {
+    return <LoaderFallback />;
+  }
+
+  switch (user.role) {
+    case "EMPLOYEE":
+      return <EmployeeLayout />;
+
+    case "MANAGER":
+      return <ManagerLayout />;
+
+    case "ADMIN":
+      return <AdminLayout />;
+
+    default:
+      return <EmployeeLayout />;
+  }
+}
 
 const routes: RouteObject[] = [
   {
@@ -29,25 +68,19 @@ const routes: RouteObject[] = [
     element: (
       <RequireAuth>
         <Suspense fallback={<LoaderFallback />}>
-          <App />
+          <RoleBasedLayout />
         </Suspense>
       </RequireAuth>
     ),
     children: [
       {
-        path: PAGE_PATH.main,
-        element: (
-          <Suspense fallback={Fallback}>
-            <RoleBasedHomePage />
-          </Suspense>
-        ),
-      },
-      {
         path: PAGE_PATH.homeEmployee,
         element: (
-          <Suspense fallback={Fallback}>
-            <HomeEmployeePage />
-          </Suspense>
+          <RequireRole allowedRoles={["EMPLOYEE"]}>
+            <Suspense fallback={Fallback}>
+              <HomeEmployeePage />
+            </Suspense>
+          </RequireRole>
         ),
       },
       {
@@ -76,6 +109,76 @@ const routes: RouteObject[] = [
           <RequireRole allowedRoles={["EMPLOYEE"]}>
             <Suspense fallback={Fallback}>
               <CashPage />
+            </Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: PAGE_PATH.homeManager,
+        element: (
+          <RequireRole allowedRoles={["MANAGER"]}>
+            <Suspense fallback={Fallback}>
+              <HomeManagerPage />
+            </Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: PAGE_PATH.globalOrders,
+        element: (
+          <RequireRole allowedRoles={["MANAGER"]}>
+            <Suspense fallback={Fallback}>
+              <GlobalOrdersPage />
+            </Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: PAGE_PATH.employeeManagment,
+        element: (
+          <RequireRole allowedRoles={["MANAGER"]}>
+            <Suspense fallback={Fallback}>
+              <EmployeeManagementPage />
+            </Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: PAGE_PATH.managerReports,
+        element: (
+          <RequireRole allowedRoles={["MANAGER"]}>
+            <Suspense fallback={Fallback}>
+              <ManagerReportsPage />
+            </Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: PAGE_PATH.homeAdmin,
+        element: (
+          <RequireRole allowedRoles={["ADMIN"]}>
+            <Suspense fallback={Fallback}>
+              <HomeAdminPage />
+            </Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: PAGE_PATH.branches,
+        element: (
+          <RequireRole allowedRoles={["ADMIN"]}>
+            <Suspense fallback={Fallback}>
+              <BranchesPage />
+            </Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: PAGE_PATH.adminReports,
+        element: (
+          <RequireRole allowedRoles={["ADMIN"]}>
+            <Suspense fallback={Fallback}>
+              <AdminReportsPage />
             </Suspense>
           </RequireRole>
         ),
