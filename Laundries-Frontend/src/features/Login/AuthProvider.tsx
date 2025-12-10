@@ -12,10 +12,21 @@ type User = {
   role: string;
 };
 
+export type EmployeeProfile = {
+  idEmpleado: string;
+  nombre: string;
+  direccion: string;
+  telefono: string;
+  dni: string;
+  fechaNacimiento: string;
+  idSucursal: string;
+};
+
 type AuthContextValue = {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
+  profile: EmployeeProfile | null;
   isAuthenticated: boolean;
   isInitializing: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -30,16 +41,21 @@ type StoredAuth = {
   user: User;
   accessToken: string;
   refreshToken: string;
+  profile: EmployeeProfile | null;
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://100.68.70.25:5500";
+const EMPLOYEES_API_BASE_URL =
+  import.meta.env.VITE_EMPLOYEES_API_URL ?? "http://100.68.70.25:8882";
 
 const LOGIN_TIMEOUT_MS = 8000;
+const PROFILE_TIMEOUT_MS = 8000;
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
+  const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
@@ -50,6 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(parsed.user);
         setAccessToken(parsed.accessToken);
         setRefreshToken(parsed.refreshToken);
+        setProfile(parsed.profile ?? null);
       }
     } catch {
       localStorage.removeItem(STORAGE_KEY);
@@ -62,6 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(data.user);
     setAccessToken(data.accessToken);
     setRefreshToken(data.refreshToken);
+    setProfile(data.profile);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   };
 
@@ -106,10 +124,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         role: json.data.role,
       };
 
+      const token = json.data.accessToken;
+
+      const profileController = new AbortController();
+      const profileTimeoutId = window.setTimeout(() => {
+        profileController.abort();
+      }, PROFILE_TIMEOUT_MS);
+
+      let profile: EmployeeProfile;
+
+      try {
+        const profileRes = await fetch(
+          `${EMPLOYEES_API_BASE_URL}/employees/${user.id}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            signal: profileController.signal,
+          }
+        );
+
+        if (!profileRes.ok) {
+          throw new Error("PROFILE_FAILED");
+        }
+
+        profile = (await profileRes.json()) as EmployeeProfile;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          throw new Error("PROFILE_TIMEOUT");
+        }
+        throw new Error("PROFILE_FAILED");
+      } finally {
+        clearTimeout(profileTimeoutId);
+      }
+
       persistAuth({
         user,
         accessToken: json.data.accessToken,
         refreshToken: json.data.refreshToken,
+        profile,
       });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -125,6 +180,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setAccessToken(null);
     setRefreshToken(null);
+    setProfile(null);
     localStorage.removeItem(STORAGE_KEY);
   };
 
@@ -136,6 +192,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         accessToken,
         refreshToken,
+        profile,
         isAuthenticated,
         isInitializing,
         login,

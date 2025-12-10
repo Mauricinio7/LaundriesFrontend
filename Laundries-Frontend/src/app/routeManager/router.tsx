@@ -25,6 +25,7 @@ const ManagerReportsPage = lazy(() => import("../../pages/ManagerReportsPage"));
 const HomeAdminPage = lazy(() => import("../../pages/HomeAdminPage"));
 const AdminReportsPage = lazy(() => import("../../pages/AdminReportsPage"));
 const BranchesPage = lazy(() => import("../../pages/BranchesPage"));
+const ServicesPage = lazy(() => import ("../../pages/ServicesPage"))
 
 const Fallback = <p style={{ padding: 16 }}>Cargando…</p>;
 
@@ -179,6 +180,16 @@ const routes: RouteObject[] = [
           <RequireRole allowedRoles={["ADMIN"]}>
             <Suspense fallback={Fallback}>
               <AdminReportsPage />
+            </Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: PAGE_PATH.adminServices,
+        element: (
+          <RequireRole allowedRoles={["ADMIN"]}>
+            <Suspense fallback={Fallback}>
+              <ServicesPage />
             </Suspense>
           </RequireRole>
         ),

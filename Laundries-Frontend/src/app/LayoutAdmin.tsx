@@ -54,6 +54,39 @@ const BranchesIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const ServicesIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="none" {...props}>
+    <rect
+      x="4"
+      y="4"
+      width="16"
+      height="16"
+      rx="3"
+      className="stroke-sky-600"
+      strokeWidth="2"
+    />
+    <circle
+      cx="12"
+      cy="12"
+      r="4"
+      className="stroke-sky-500"
+      strokeWidth="2"
+    />
+    <circle
+      cx="8"
+      cy="8"
+      r="0.9"
+      className="fill-sky-400"
+    />
+    <path
+      d="M10.5 12.2c.4.5 1 .8 1.7.8 1.1 0 2-.9 2-2"
+      className="stroke-emerald-500"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
 const ReportsIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
     <rect
@@ -193,6 +226,27 @@ export default function LayoutAdmin() {
                 }`}
               >
                 Sucursales
+              </span>
+            </NavLink>
+
+            <NavLink
+              to={PAGE_PATH.adminServices}
+              className={({ isActive }) =>
+                [
+                  "flex items-center gap-4 px-3 py-3 rounded-xl text-base font-semibold transition-colors",
+                  isActive
+                    ? "bg-sky-100 text-sky-700"
+                    : "text-slate-500 hover:bg-sky-50 hover:text-sky-700",
+                ].join(" ")
+              }
+            >
+              <ServicesIcon className="h-8 w-8 flex-shrink-0" />
+              <span
+                className={`whitespace-nowrap transition-opacity ${
+                  expanded ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                Servicios
               </span>
             </NavLink>
 

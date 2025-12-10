@@ -13,4 +13,5 @@ export const PAGE_PATH = {
   employeeManagment: "/employeemanagment",
   branches: "/branches",
   adminReports: "/adminreports",
+  adminServices: "/adminservices"
 } as const;

@@ -41,10 +41,18 @@ export default function LoginPage() {
 
       if (message === "LOGIN_TIMEOUT") {
         setErrorMsg(
-          "El servidor tardó demasiado en responder. Intenta de nuevo."
+          "El servidor de autenticación tardó demasiado en responder. Intenta de nuevo."
         );
       } else if (message === "LOGIN_FAILED") {
         setErrorMsg("Credenciales inválidas. Verifica tu correo y contraseña.");
+      } else if (message === "PROFILE_TIMEOUT") {
+        setErrorMsg(
+          "El servidor de perfiles tardó demasiado en responder. Intenta de nuevo."
+        );
+      } else if (message === "PROFILE_FAILED") {
+        setErrorMsg(
+          "No se pudo cargar la información de tu perfil. Intenta nuevamente."
+        );
       } else {
         setErrorMsg("Ocurrió un error al iniciar sesión. Intenta nuevamente.");
       }
