@@ -11,6 +11,6 @@ export const PAGE_PATH = {
   globalOrders: "/globalorders",
   managerReports: "/managerreports",
   employeeManagment: "/employeemanagment",
-  branches: "/brances",
+  branches: "/branches",
   adminReports: "/adminreports",
 } as const;
