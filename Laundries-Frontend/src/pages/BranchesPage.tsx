@@ -1,66 +1,97 @@
-import React from "react";
+import { useState } from "react";
+import { useBranches } from "../features/branches/hooks/useBranches";
+import { useEmployeesBySucursal } from "../features/branches/hooks/useEmployeesBySucursal";
 
-const BranchesPage: React.FC = () => {
-  const branches = [
-    {
-      id: 1,
-      name: "Sucursal Centro",
-      address: "Calle Principal 123, Centro",
-      city: "Santiago",
-    },
-    {
-      id: 2,
-      name: "Sucursal Norte",
-      address: "Avenida del Norte 456, Barrio Norte",
-      city: "Santiago",
-    },
-    {
-      id: 3,
-      name: "Sucursal Sur",
-      address: "Pasaje Sur 789, Zona Sur",
-      city: "Santiago",
-    },
-    {
-      id: 4,
-      name: "Sucursal Oriente",
-      address: "Calle Este 321, Sector Oriente",
-      city: "Santiago",
-    },
-  ];
+import { BranchCard } from "../features/branches/components/BranchCard";
+import { EditBranchModal } from "../features/branches/components/EditBranchModal";
+import { AddManagerModal } from "../features/branches/components/AddManagerModal";
+import { EditEmployeeModal } from "../features/branches/components/EditEmployeeModal";
+import { EmployeesBySucursalModal } from "../features/branches/components/EmployeesBySucursalModal";
+
+export default function BranchesPage() {
+  const { branches, loading, editBranch, cancelBranch } = useBranches();
+  const {
+    employees,
+    loading: loadingEmployees,
+    load: loadEmployeesBySucursal,
+    edit: editEmployee,
+  } = useEmployeesBySucursal();
+
+  const [openEditBranch, setOpenEditBranch] = useState(false);
+  const [openAddManager, setOpenAddManager] = useState(false);
+  const [openEmployeesModal, setOpenEmployeesModal] = useState(false);
+  const [openEditEmployee, setOpenEditEmployee] = useState(false);
+
+  const [selectedBranch, setSelectedBranch] = useState<any>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+
+  if (loading) return <p className="p-6">Cargando...</p>;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold text-gray-900 mb-12 text-center">
-          Nuestras Sucursales
-        </h1>
+    <div className="p-6 space-y-8">
+      <h1 className="text-3xl font-bold mb-4">Sucursales</h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {branches.map((branch) => (
-            <div
-              key={branch.id}
-              className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
-            >
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                {branch.name}
-              </h2>
-              <div className="flex items-start gap-2 text-gray-600">
-                <svg
-                  className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path d="M5.5 13a3 3 0 11-6 0 3 3 0 016 0zm12.066-7.07a3.75 3.75 0 00-5.304-5.304 3.75 3.75 0 10 5.304 5.304zm2.25 1.184a5.25 5.25 0 11-7.425-7.425 5.25 5.25 0 017.425 7.425z" />
-                </svg>
-                <p>{branch.address}</p>
-              </div>
-              <p className="text-sm text-gray-500 mt-3">{branch.city}</p>
-            </div>
-          ))}
-        </div>
+      <div className="space-y-4">
+        {branches.map((branch: any) => (
+          <BranchCard
+            key={branch.id}
+            branch={branch}
+            onEdit={(b) => {
+              setSelectedBranch(b);
+              setOpenEditBranch(true);
+            }}
+            onAddManager={(b) => {
+              setSelectedBranch(b);
+              setOpenAddManager(true);
+            }}
+            onShowEmployees={(b) => {
+              setSelectedBranch(b);
+              loadEmployeesBySucursal(b.id);
+              setOpenEmployeesModal(true);
+            }}
+          />
+        ))}
       </div>
+
+      {/* MODALES */}
+
+      {/* Editar Sucursal */}
+      <EditBranchModal
+        open={openEditBranch}
+        branch={selectedBranch}
+        onClose={() => setOpenEditBranch(false)}
+        onSave={editBranch}
+        onCancel={cancelBranch}
+      />
+
+      {/* Agregar Gerente */}
+      <AddManagerModal
+        open={openAddManager}
+        branch={selectedBranch}
+        onClose={() => setOpenAddManager(false)}
+        onCreate={() => {}}
+      />
+
+      {/* Ver empleados por sucursal */}
+      <EmployeesBySucursalModal
+        open={openEmployeesModal}
+        branch={selectedBranch}
+        employees={employees}
+        loading={loadingEmployees}
+        onClose={() => setOpenEmployeesModal(false)}
+        onEditEmployee={(emp: any) => {
+          setSelectedEmployee(emp);
+          setOpenEditEmployee(true);
+        }}
+      />
+
+      {/* Editar Empleado */}
+      <EditEmployeeModal
+        open={openEditEmployee}
+        employee={selectedEmployee}
+        onClose={() => setOpenEditEmployee(false)}
+        onSave={editEmployee}
+      />
     </div>
   );
-};
-
-export default BranchesPage;
+}
