@@ -11,25 +11,12 @@ interface Order {
 
 export const OrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // Fetch orders from API
-    fetchOrders();
-  }, []);
-
-  const fetchOrders = async () => {
-    try {
-      // Replace with your actual API endpoint
-      const response = await fetch("/api/orders");
-      const data = await response.json();
-      setOrders(data);
-    } catch (error) {
-      console.error("Error fetching orders:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // TODO: Implementar cuando esté disponible el endpoint
+  // useEffect(() => {
+  //   fetchOrders();
+  // }, []);
 
   const getStatusColor = (status: Order["status"]) => {
     switch (status) {

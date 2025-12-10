@@ -1,106 +1,91 @@
-export default function GlobalOrders() {
-  const orders = [
-    {
-      id: 1,
-      branch: "Centro",
-      customer: "Juan Pérez",
-      service: "Lavado y Planchado",
-      date: "2024-01-15",
-      status: "Completado",
-    },
-    {
-      id: 2,
-      branch: "Zona Rosa",
-      customer: "María García",
-      service: "Lavado Express",
-      date: "2024-01-16",
-      status: "En Proceso",
-    },
-    {
-      id: 3,
-      branch: "Sur",
-      customer: "Carlos López",
-      service: "Limpieza en Seco",
-      date: "2024-01-16",
-      status: "Pendiente",
-    },
-  ];
+import React, { useState } from "react";
+import { useAuth } from "../features/Login/AuthProvider";
+import { SearchBar } from "../shared/ui/SearchBar";
+import { useActiveSales } from "../features/orders/hooks/useActiveSales";
+import { ActiveSalesList } from "../features/orders/components/ActiveSalesList";
+import { ErrorAlert } from "../features/services/components/ErrorAlert";
+import type { Client } from "../shared/lib/client.service";
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Completado":
-        return "bg-green-100 text-green-800";
-      case "En Proceso":
-        return "bg-blue-100 text-blue-800";
-      case "Pendiente":
-        return "bg-yellow-100 text-yellow-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
+export default function GlobalOrdersPage() {
+  const { profile } = useAuth();
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+
+  const idSucursal = profile?.idSucursal || null;
+  const { sales, loading, error } = useActiveSales(
+    idSucursal,
+    selectedClient?.id
+  );
+
+  const handleSelectClient = (client: Client) => {
+    setSelectedClient(client);
+  };
+
+  const handleClearClient = () => {
+    setSelectedClient(null);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">
-          Órdenes Globales
-        </h1>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Ventas Activas
+          </h1>
+          <p className="text-gray-600">
+            Busca un cliente para ver sus ventas activas o visualiza todas las
+            ventas de la sucursal
+          </p>
+        </div>
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-100 border-b">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  ID
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Sucursal
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Cliente
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Servicio
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Fecha
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Estado
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {orders.map((order) => (
-                <tr key={order.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    #{order.id}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {order.branch}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {order.customer}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {order.service}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {order.date}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                        order.status
-                      )}`}
-                    >
-                      {order.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mb-6">
+          <div className="bg-white rounded-lg shadow p-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Buscar Cliente
+            </label>
+            <SearchBar
+              onSelectClient={handleSelectClient}
+              onClear={handleClearClient}
+              placeholder="Buscar por nombre, teléfono o correo..."
+            />
+            {selectedClient && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      Cliente seleccionado: {selectedClient.nombre}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {selectedClient.correo} • {selectedClient.telefono}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleClearClient}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    Limpiar filtro
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <ErrorAlert message={error || ""} />
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900">
+              {selectedClient
+                ? `Ventas Activas de ${selectedClient.nombre}`
+                : "Todas las Ventas Activas"}
+            </h2>
+            {sales.length > 0 && (
+              <span className="text-sm text-gray-600">
+                {sales.length} venta(s) activa(s)
+              </span>
+            )}
+          </div>
+          <ActiveSalesList sales={sales} loading={loading} />
         </div>
       </div>
     </div>

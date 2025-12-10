@@ -2,10 +2,12 @@ import React from "react";
 import type { Client } from "../../../shared/lib/client.service";
 import { CustomerLogo } from "./CustomerLogo";
 
-interface CustomerTableProps {
+export interface CustomerTableProps {
   clients: Client[];
   onEdit: (client: Client) => void;
-  onDelete: (id: number) => void;
+  onDelete: (id: number) => void | Promise<void>;
+  onNewSale?: (client: Client) => void;
+  onViewActiveSales?: (client: Client) => void;
   isAdmin: boolean;
 }
 
@@ -13,8 +15,10 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
   clients,
   onEdit,
   onDelete,
+  onNewSale,
+  onViewActiveSales,
   isAdmin,
-}) => {
+}: CustomerTableProps) => {
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
       {clients.length === 0 ? (
@@ -63,21 +67,41 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                   {client.telefono}
                 </td>
                 <td className="px-6 py-4">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => onEdit(client)}
-                      className="text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors"
-                    >
-                      Editar
-                    </button>
-                    {isAdmin && (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      {onNewSale && (
+                        <button
+                          onClick={() => onNewSale(client)}
+                          className="text-sm px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                        >
+                          Nueva Venta
+                        </button>
+                      )}
+                      {onViewActiveSales && (
+                        <button
+                          onClick={() => onViewActiveSales(client)}
+                          className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                        >
+                          Ver Ventas Activas
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
                       <button
-                        onClick={() => onDelete(client.id)}
-                        className="text-red-600 hover:text-red-800 font-medium text-sm transition-colors"
+                        onClick={() => onEdit(client)}
+                        className="text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors"
                       >
-                        Eliminar
+                        Editar
                       </button>
-                    )}
+                      {isAdmin && (
+                        <button
+                          onClick={() => onDelete(client.id)}
+                          className="text-red-600 hover:text-red-800 font-medium text-sm transition-colors"
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </td>
               </tr>

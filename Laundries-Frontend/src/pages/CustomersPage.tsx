@@ -6,10 +6,12 @@ import { CustomerTable } from "../features/customers/components/CustomerTable";
 import { CustomerModal } from "../features/customers/components/CustomerModal";
 import { LoadingSpinner } from "../features/customers/components/LoadingSpinner";
 import { ErrorAlert } from "../features/customers/components/ErrorAlert";
+import { CreateOrderModal } from "../features/orders/components/CreateOrderModal";
+import { ClientActiveSales } from "../features/orders/components/ClientActiveSales";
 import type { Client } from "../shared/lib/client.service";
 
 const CustomersPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const {
     clients,
     loading,
@@ -33,7 +35,15 @@ const CustomersPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Estados para nueva venta y ventas activas
+  const [selectedClientForSale, setSelectedClientForSale] = useState<Client | null>(null);
+  const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
+  const [isActiveSalesOpen, setIsActiveSalesOpen] = useState(false);
+  const [clientForActiveSales, setClientForActiveSales] = useState<Client | null>(null);
+
   const isAdmin = user?.role === "ADMIN";
+  const idSucursal = profile?.idSucursal || "";
+  const idEmpleado = profile?.idEmpleado || "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,6 +92,16 @@ const CustomersPage: React.FC = () => {
     }
   };
 
+  const handleNewSale = (client: Client) => {
+    setSelectedClientForSale(client);
+    setIsCreateOrderModalOpen(true);
+  };
+
+  const handleViewActiveSales = (client: Client) => {
+    setClientForActiveSales(client);
+    setIsActiveSalesOpen(true);
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingClient(null);
@@ -93,6 +113,17 @@ const CustomersPage: React.FC = () => {
     setIsModalOpen(true);
     setEditingClient(null);
     resetForm();
+  };
+
+  const handleOrderCreated = () => {
+    setIsCreateOrderModalOpen(false);
+    setSelectedClientForSale(null);
+    // Opcional: recargar clientes si es necesario
+  };
+
+  const handleCloseActiveSales = () => {
+    setIsActiveSalesOpen(false);
+    setClientForActiveSales(null);
   };
 
   if (loading) {
@@ -136,6 +167,8 @@ const CustomersPage: React.FC = () => {
           clients={clients}
           onEdit={handleEdit}
           onDelete={handleDeleteClick}
+          onNewSale={handleNewSale}
+          onViewActiveSales={handleViewActiveSales}
           isAdmin={isAdmin}
         />
 
@@ -160,6 +193,32 @@ const CustomersPage: React.FC = () => {
           onSubmit={handleSubmit}
           onInputChange={handleInputChange}
         />
+
+        {selectedClientForSale && (
+          <CreateOrderModal
+            isOpen={isCreateOrderModalOpen}
+            client={selectedClientForSale}
+            idSucursal={idSucursal}
+            idEmpleado={idEmpleado}
+            onClose={() => {
+              setIsCreateOrderModalOpen(false);
+              setSelectedClientForSale(null);
+            }}
+            onSuccess={handleOrderCreated}
+          />
+        )}
+
+        {isActiveSalesOpen && clientForActiveSales && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <ClientActiveSales
+                clientId={clientForActiveSales.id}
+                idSucursal={idSucursal}
+                onClose={handleCloseActiveSales}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -90,9 +90,13 @@ export const createClient = async (
 
 /**
  * Obtiene todos los clientes
+ * @param busqueda - Término de búsqueda opcional para filtrar por nombre, teléfono o correo
  */
-export const getAllClients = async (): Promise<Client[]> => {
-  const response = await fetchWithAuth("/clientes");
+export const getAllClients = async (busqueda?: string): Promise<Client[]> => {
+  const endpoint = busqueda
+    ? `/clientes?busqueda=${encodeURIComponent(busqueda)}`
+    : "/clientes";
+  const response = await fetchWithAuth(endpoint);
   // El backend devuelve directamente el array según el controller
   const clients: Client[] = await response.json();
   return clients;

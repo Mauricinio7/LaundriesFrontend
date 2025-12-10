@@ -122,6 +122,15 @@ export const getAllServices = async (): Promise<Service[]> => {
 };
 
 /**
+ * Obtiene solo los servicios activos
+ */
+export const getAllActiveServices = async (): Promise<Service[]> => {
+  const response = await fetchWithAuth("/servicios/active");
+  const services: Service[] = await response.json();
+  return services;
+};
+
+/**
  * Actualiza un servicio
  */
 export const updateService = async (
