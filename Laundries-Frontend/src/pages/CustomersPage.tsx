@@ -1,91 +1,165 @@
-import React from "react";
+import React, { useState } from "react";
+import { useAuth } from "../features/Login/AuthProvider";
+import { useClients } from "../features/customers/hooks/useClients";
+import { useCustomerForm } from "../features/customers/hooks/useCustomerForm";
+import { CustomerTable } from "../features/customers/components/CustomerTable";
+import { CustomerModal } from "../features/customers/components/CustomerModal";
+import { LoadingSpinner } from "../features/customers/components/LoadingSpinner";
+import { ErrorAlert } from "../features/customers/components/ErrorAlert";
+import type { Client } from "../shared/lib/client.service";
 
 const CustomersPage: React.FC = () => {
-  const customers = [
-    { id: 1, name: "Juan Pérez", email: "juan@example.com", phone: "555-0101" },
-    {
-      id: 2,
-      name: "María García",
-      email: "maria@example.com",
-      phone: "555-0102",
-    },
-    {
-      id: 3,
-      name: "Carlos López",
-      email: "carlos@example.com",
-      phone: "555-0103",
-    },
-    {
-      id: 4,
-      name: "Ana Martínez",
-      email: "ana@example.com",
-      phone: "555-0104",
-    },
-  ];
+  const { user } = useAuth();
+  const {
+    clients,
+    loading,
+    error,
+    handleCreate,
+    handleUpdate,
+    handleDelete,
+  } = useClients();
 
-  const CustomerLogo: React.FC = () => (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-      <circle cx="20" cy="20" r="18" stroke="#3B82F6" strokeWidth="2" />
-      <path
-        d="M20 10V30M10 20H30"
-        stroke="#3B82F6"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  const {
+    formData,
+    formErrors,
+    validateForm,
+    handleInputChange,
+    resetForm,
+    setFormDataFromClient,
+  } = useCustomerForm();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const isAdmin = user?.role === "ADMIN";
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setSubmitError(null);
+
+      if (editingClient) {
+        await handleUpdate(editingClient.id, formData);
+      } else {
+        await handleCreate(formData);
+      }
+
+      handleCloseModal();
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error
+          ? err.message
+          : `Error al ${editingClient ? "actualizar" : "crear"} el cliente`
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEdit = (client: Client) => {
+    setEditingClient(client);
+    setFormDataFromClient(client);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteClick = async (id: number) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar este cliente?")) {
+      return;
+    }
+
+    try {
+      await handleDelete(id);
+    } catch (err) {
+      // El error se maneja en el hook useClients
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingClient(null);
+    resetForm();
+    setSubmitError(null);
+  };
+
+  const handleOpenModal = () => {
+    setIsModalOpen(true);
+    setEditingClient(null);
+    resetForm();
+  };
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Clientes</h1>
-          <p className="text-gray-600">
-            Gestiona los clientes de tu lavandería
-          </p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Clientes</h1>
+            <p className="text-gray-600">
+              Gestiona los clientes de tu lavandería
+            </p>
+          </div>
+          <button
+            onClick={handleOpenModal}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200 flex items-center gap-2"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Nuevo Cliente
+          </button>
         </div>
 
-        <div className="bg-white rounded-lg shadow">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                  Logo
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                  Nombre
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                  Teléfono
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {customers.map((customer) => (
-                <tr
-                  key={customer.id}
-                  className="border-b border-gray-200 hover:bg-gray-50"
-                >
-                  <td className="px-6 py-4">
-                    <CustomerLogo />
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {customer.name}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {customer.email}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {customer.phone}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ErrorAlert message={error || submitError || ""} />
+
+        <CustomerTable
+          clients={clients}
+          onEdit={handleEdit}
+          onDelete={handleDeleteClick}
+          isAdmin={isAdmin}
+        />
+
+        {clients.length === 0 && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={handleOpenModal}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200"
+            >
+              Crear primer cliente
+            </button>
+          </div>
+        )}
+
+        <CustomerModal
+          isOpen={isModalOpen}
+          editingClient={editingClient}
+          formData={formData}
+          formErrors={formErrors}
+          isSubmitting={isSubmitting}
+          onClose={handleCloseModal}
+          onSubmit={handleSubmit}
+          onInputChange={handleInputChange}
+        />
       </div>
     </div>
   );
