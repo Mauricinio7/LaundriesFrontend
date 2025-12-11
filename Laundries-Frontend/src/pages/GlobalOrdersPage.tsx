@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useAuth } from "../features/Login/AuthProvider";
 import { SearchBar } from "../shared/ui/SearchBar";
 import { useActiveSales } from "../features/orders/hooks/useActiveSales";
@@ -85,7 +85,7 @@ export default function GlobalOrdersPage() {
               </span>
             )}
           </div>
-          <ActiveSalesList sales={sales} loading={loading} />
+          <ActiveSalesList sales={sales} loading={loading} idSucursal={idSucursal} />
         </div>
       </div>
     </div>

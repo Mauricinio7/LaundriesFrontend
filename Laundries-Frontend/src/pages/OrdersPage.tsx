@@ -1,75 +1,119 @@
-import React, { useState, useEffect } from "react";
-
-interface Order {
-  id: string;
-  customerName: string;
-  serviceType: string;
-  status: "pending" | "in-progress" | "completed";
-  date: string;
-  total: number;
-}
+import { useState, useMemo } from "react";
+import { useAuth } from "../features/Login/AuthProvider";
+import { SearchBar } from "../shared/ui/SearchBar";
+import { useActiveSales } from "../features/orders/hooks/useActiveSales";
+import { ActiveSalesList } from "../features/orders/components/ActiveSalesList";
+import { ErrorAlert } from "../features/services/components/ErrorAlert";
+import type { Client } from "../shared/lib/client.service";
 
 export const OrdersPage: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { profile } = useAuth();
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
-  // TODO: Implementar cuando esté disponible el endpoint
-  // useEffect(() => {
-  //   fetchOrders();
-  // }, []);
+  const idSucursal = profile?.idSucursal || null;
+  const idEmpleado = profile?.idEmpleado || null;
 
-  const getStatusColor = (status: Order["status"]) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "in-progress":
-        return "bg-blue-100 text-blue-800";
-      case "completed":
-        return "bg-green-100 text-green-800";
-    }
+  // Obtener todas las ventas activas de la sucursal
+  const { sales: allSales, loading, error } = useActiveSales(
+    idSucursal,
+    selectedClient?.id
+  );
+
+  // Filtrar solo las ventas que atendió este empleado
+  const mySales = useMemo(() => {
+    if (!idEmpleado) return [];
+    return allSales.filter((sale) => String(sale.id_empleado) === String(idEmpleado));
+  }, [allSales, idEmpleado]);
+
+  const handleSelectClient = (client: Client) => {
+    setSelectedClient(client);
   };
 
-  if (loading) return <div className="p-8">Cargando órdenes...</div>;
+  const handleClearClient = () => {
+    setSelectedClient(null);
+  };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Órdenes de Lavandería</h1>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Mis Órdenes Pendientes
+          </h1>
+          <p className="text-gray-600">
+            Visualiza y gestiona las órdenes que has atendido y que aún están pendientes
+          </p>
+        </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-gray-300">
-          <thead className="bg-gray-200">
-            <tr>
-              <th className="border p-3 text-left">ID</th>
-              <th className="border p-3 text-left">Cliente</th>
-              <th className="border p-3 text-left">Servicio</th>
-              <th className="border p-3 text-left">Estado</th>
-              <th className="border p-3 text-left">Fecha</th>
-              <th className="border p-3 text-left">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => (
-              <tr key={order.id} className="hover:bg-gray-50">
-                <td className="border p-3">{order.id}</td>
-                <td className="border p-3">{order.customerName}</td>
-                <td className="border p-3">{order.serviceType}</td>
-                <td className="border p-3">
-                  <span
-                    className={`px-3 py-1 rounded ${getStatusColor(
-                      order.status
-                    )}`}
+        {/* Barra de búsqueda */}
+        <div className="mb-6">
+          <div className="bg-white rounded-lg shadow p-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Buscar Cliente
+            </label>
+            <SearchBar
+              onSelectClient={handleSelectClient}
+              onClear={handleClearClient}
+              placeholder="Buscar por nombre, teléfono o correo..."
+            />
+            {selectedClient && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      Filtrando por: {selectedClient.nombre}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {selectedClient.correo} • {selectedClient.telefono}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleClearClient}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                   >
-                    {order.status}
-                  </span>
-                </td>
-                <td className="border p-3">
-                  {new Date(order.date).toLocaleDateString()}
-                </td>
-                <td className="border p-3">${order.total.toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    Limpiar filtro
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <ErrorAlert message={error || ""} />
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900">
+              {selectedClient
+                ? `Órdenes Pendientes de ${selectedClient.nombre}`
+                : "Mis Órdenes Pendientes"}
+            </h2>
+            {mySales.length > 0 && (
+              <span className="text-sm text-gray-600">
+                {mySales.length} orden(es) pendiente(s)
+              </span>
+            )}
+          </div>
+          <ActiveSalesList 
+            sales={mySales} 
+            loading={loading} 
+            idSucursal={idSucursal}
+            hideEmployeeInfo={true}
+          />
+        </div>
+
+        {!loading && mySales.length === 0 && allSales.length > 0 && (
+          <div className="mt-4 text-center p-8 bg-white rounded-lg shadow">
+            <p className="text-gray-500 text-lg mb-2">
+              No tienes órdenes pendientes en este momento
+            </p>
+            <p className="text-sm text-gray-400">
+              {selectedClient 
+                ? "Este cliente no tiene órdenes pendientes atendidas por ti"
+                : "Todas tus órdenes han sido completadas"}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
