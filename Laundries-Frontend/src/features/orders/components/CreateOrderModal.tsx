@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { getAllActiveServices, type Service } from "../../../shared/lib/service.service";
-import { createOrder, type CreateOrderData } from "../../../shared/lib/order.service";
+import { createOrder, type CreateOrderData, type Sale } from "../../../shared/lib/order.service";
+import { getEmployeesBySucursal, type Employee } from "../../../shared/lib/employee.service";
+import { getBranchById } from "../../../shared/lib/branch.service";
+import { generateTicketPDF, type TicketData } from "../../../shared/lib/pdf.service";
 import type { Client } from "../../../shared/lib/client.service";
 
 interface CreateOrderModalProps {
@@ -42,12 +45,19 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const [anotaciones, setAnotaciones] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createdOrder, setCreatedOrder] = useState<Sale | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [employeeName, setEmployeeName] = useState<string>("");
+  const [branchName, setBranchName] = useState<string>("");
+  const [savedFormItems, setSavedFormItems] = useState<OrderItem[]>([]); // Guardar items del formulario
 
   useEffect(() => {
     if (isOpen) {
       loadServices();
+      loadEmployeeName();
+      loadBranchName();
     }
-  }, [isOpen]);
+  }, [isOpen, idSucursal, idEmpleado]);
 
   const loadServices = async () => {
     try {
@@ -60,6 +70,30 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       );
     } finally {
       setLoadingServices(false);
+    }
+  };
+
+  const loadEmployeeName = async () => {
+    if (!idSucursal || !idEmpleado) return;
+    try {
+      const employees = await getEmployeesBySucursal(idSucursal);
+      const employee = employees.find((emp) => String(emp.id) === String(idEmpleado));
+      if (employee) {
+        setEmployeeName(employee.nombre);
+      }
+    } catch (err) {
+      console.error("Error al cargar nombre del empleado:", err);
+    }
+  };
+
+  const loadBranchName = async () => {
+    if (!idSucursal) return;
+    try {
+      const branch = await getBranchById(idSucursal);
+      setBranchName(branch.nombre);
+    } catch (err) {
+      console.error("Error al cargar nombre de la sucursal:", err);
+      setBranchName(`Sucursal ${idSucursal}`); // Fallback
     }
   };
 
@@ -136,9 +170,66 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         })),
       };
 
-      await createOrder(orderData);
-      onSuccess();
-      handleClose();
+      // Guardar items del formulario antes de crear la orden (copia profunda)
+      const formItemsCopy = items.map(item => ({ ...item }));
+      setSavedFormItems(formItemsCopy);
+      
+      const newOrder = await createOrder(orderData);
+      
+      // Construir items desde el formulario siempre (más confiable)
+      const servicesMap: Record<number, Service> = {};
+      services.forEach((service) => {
+        servicesMap[service.id] = service;
+      });
+      
+      // Construir items desde el formulario
+      const constructedItems = formItemsCopy.map((item) => {
+        const service = servicesMap[item.idServicio];
+        const precio = Number(service?.precio_por_kilo || 0);
+        return {
+          id: 0, // Temporal, se asignará cuando se obtengan los detalles
+          id_venta: newOrder.id,
+          id_servicio: item.idServicio,
+          numero_prendas: item.numeroPrendas,
+          peso_kg: item.pesoKg,
+          precio_aplicado: precio,
+          subtotal: precio * item.pesoKg,
+          detalles_prendas: item.detalles || undefined,
+          estado: "RECIBIDO" as const,
+          fecha_entrega_estimada: item.fechaEntrega || undefined,
+        };
+      });
+      
+      // Si la orden incluye items del backend, usarlos; si no, usar los construidos
+      let orderWithItems = newOrder;
+      if (!newOrder.items || newOrder.items.length === 0) {
+        // Esperar un momento para que el backend procese
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        try {
+          const { getSaleDetails } = await import("../../../shared/lib/order.service");
+          const details = await getSaleDetails(newOrder.id);
+          // Si los detalles tienen items, usarlos; si no, usar los construidos
+          if (details.items && details.items.length > 0) {
+            orderWithItems = details;
+          } else {
+            orderWithItems = {
+              ...newOrder,
+              items: constructedItems,
+            };
+          }
+        } catch (err) {
+          console.error("Error al obtener detalles de la venta:", err);
+          // Usar items construidos desde el formulario
+          orderWithItems = {
+            ...newOrder,
+            items: constructedItems,
+          };
+        }
+      }
+      
+      setCreatedOrder(orderWithItems);
+      setShowSuccessModal(true);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Error al crear la orden"
@@ -160,7 +251,102 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     ]);
     setAnotaciones("");
     setError(null);
+    setCreatedOrder(null);
+    setShowSuccessModal(false);
+    setSavedFormItems([]);
     onClose();
+  };
+
+  const handleDownloadTicket = async () => {
+    if (!createdOrder) return;
+
+    // Asegurarse de tener los items completos
+    let orderWithItems = createdOrder;
+    if (!createdOrder.items || createdOrder.items.length === 0) {
+      try {
+        const { getSaleDetails } = await import("../../../shared/lib/order.service");
+        orderWithItems = await getSaleDetails(createdOrder.id);
+      } catch (err) {
+        console.error("Error al obtener detalles:", err);
+        // Si falla, construir desde los items guardados del formulario
+        const servicesMap: Record<number, Service> = {};
+        services.forEach((service) => {
+          servicesMap[service.id] = service;
+        });
+        
+        const formItems = savedFormItems.length > 0 ? savedFormItems : items;
+        orderWithItems = {
+          ...createdOrder,
+          items: formItems.map((item) => {
+            const service = servicesMap[item.idServicio];
+            const precio = Number(service?.precio_por_kilo || 0);
+            return {
+              id: 0,
+              id_venta: createdOrder.id,
+              id_servicio: item.idServicio,
+              numero_prendas: item.numeroPrendas,
+              peso_kg: item.pesoKg,
+              precio_aplicado: precio,
+              subtotal: precio * item.pesoKg,
+              detalles_prendas: item.detalles || undefined,
+              estado: "RECIBIDO" as const,
+              fecha_entrega_estimada: item.fechaEntrega || undefined,
+            };
+          }),
+        };
+      }
+    }
+
+    // Crear mapa de servicios para buscar nombres
+    const servicesMap: Record<number, Service> = {};
+    services.forEach((service) => {
+      servicesMap[service.id] = service;
+    });
+
+    // Construir datos del ticket
+    const ticketData: TicketData = {
+      codigo: orderWithItems.codigo_recogida,
+      fecha: orderWithItems.fecha_recepcion,
+      clienteNombre: client.nombre,
+      clienteTelefono: client.telefono,
+      sucursalNombre: branchName || `Sucursal ${idSucursal}`,
+      empleadoNombre: employeeName || "Empleado",
+      items: (orderWithItems.items || []).map((item) => {
+        const service = servicesMap[item.id_servicio];
+        return {
+          servicio: service?.nombre || `Servicio #${item.id_servicio}`,
+          peso: Number(item.peso_kg),
+          numeroPrendas: item.numero_prendas,
+          precio: Number(item.precio_aplicado),
+          subtotal: Number(item.subtotal),
+          detalles: item.detalles_prendas,
+        };
+      }),
+      total: Number(orderWithItems.costo_total),
+      anotaciones: orderWithItems.anotaciones_generales,
+    };
+
+    // Validar que hay items antes de generar
+    if (ticketData.items.length === 0) {
+      console.error("No hay items para el ticket:", {
+        orderWithItems,
+        savedFormItems,
+        items,
+        services,
+      });
+      alert("Error: No se pudieron cargar los items de la orden. Por favor, intente descargar el ticket desde la lista de ventas activas.");
+      return;
+    }
+
+    console.log("Generando ticket con items:", ticketData.items);
+    generateTicketPDF(ticketData);
+  };
+
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
+    setCreatedOrder(null);
+    onSuccess();
+    handleClose();
   };
 
   if (!isOpen) return null;
@@ -366,6 +552,68 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
           </form>
         </div>
       </div>
+
+      {/* Modal de éxito con opción de descargar ticket */}
+      {showSuccessModal && createdOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="text-center mb-6">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                <svg
+                  className="h-6 w-6 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                ¡Venta creada exitosamente!
+              </h3>
+              <p className="text-sm text-gray-600 mb-1">
+                Código de recogida: <span className="font-bold">{createdOrder.codigo_recogida}</span>
+              </p>
+              <p className="text-sm text-gray-500">
+                Total: ${Number(createdOrder.costo_total).toFixed(2)}
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleSuccessModalClose}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={handleDownloadTicket}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                Descargar Ticket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

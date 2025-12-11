@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { getSaleDetails, type Sale, type OrderItem } from "../../../shared/lib/order.service";
 import { getClient, type Client } from "../../../shared/lib/client.service";
 import { getEmployeesBySucursal, type Employee } from "../../../shared/lib/employee.service";
+import { getAllActiveServices, type Service } from "../../../shared/lib/service.service";
+import { getBranchById } from "../../../shared/lib/branch.service";
+import { generateTicketPDF, type TicketData } from "../../../shared/lib/pdf.service";
 
 export interface ActiveSalesListProps {
   sales: Sale[];
@@ -40,6 +43,8 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
   // Estados para datos humanos
   const [clients, setClients] = useState<Record<number, Client>>({});
   const [employees, setEmployees] = useState<Record<string, Employee>>({});
+  const [services, setServices] = useState<Record<number, Service>>({});
+  const [branches, setBranches] = useState<Record<string, string>>({});
   const [loadingClients, setLoadingClients] = useState(false);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
 
@@ -49,6 +54,11 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
       loadEmployees();
     }
   }, [idSucursal, hideEmployeeInfo]);
+
+  // Cargar servicios al montar
+  useEffect(() => {
+    loadServices();
+  }, []);
 
   // Cargar clientes cuando cambien las ventas
   useEffect(() => {
@@ -100,6 +110,77 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
       console.error("Error al cargar clientes:", error);
     } finally {
       setLoadingClients(false);
+    }
+  };
+
+  const loadServices = async () => {
+    try {
+      const { getAllActiveServices } = await import("../../../shared/lib/service.service");
+      const servicesList = await getAllActiveServices();
+      const servicesMap: Record<number, Service> = {};
+      servicesList.forEach((service) => {
+        servicesMap[service.id] = service;
+      });
+      setServices(servicesMap);
+    } catch (error) {
+      console.error("Error al cargar servicios:", error);
+    }
+  };
+
+  const loadBranchName = async (branchId: string | number) => {
+    if (branches[String(branchId)]) return branches[String(branchId)];
+    
+    try {
+      const branch = await getBranchById(String(branchId));
+      setBranches((prev) => ({ ...prev, [String(branchId)]: branch.nombre }));
+      return branch.nombre;
+    } catch (error) {
+      console.error("Error al cargar nombre de la sucursal:", error);
+      return `Sucursal ${branchId}`;
+    }
+  };
+
+  const handleDownloadTicket = async (sale: Sale) => {
+    try {
+      // Obtener detalles completos de la venta si no están cargados
+      let saleData = sale;
+      if (!sale.items || sale.items.length === 0) {
+        saleData = await getSaleDetails(sale.id);
+      }
+
+      const client = clients[saleData.id_cliente];
+      const employee = employees[saleData.id_empleado] || { nombre: "N/A" };
+      
+      // Obtener nombre de la sucursal
+      const branchName = await loadBranchName(saleData.id_sucursal);
+
+      // Construir datos del ticket
+      const ticketData: TicketData = {
+        codigo: saleData.codigo_recogida,
+        fecha: saleData.fecha_recepcion,
+        clienteNombre: client?.nombre || `Cliente #${saleData.id_cliente}`,
+        clienteTelefono: client?.telefono,
+        sucursalNombre: branchName,
+        empleadoNombre: employee.nombre || "N/A",
+        items: (saleData.items || []).map((item) => {
+          const service = services[item.id_servicio];
+          return {
+            servicio: service?.nombre || `Servicio #${item.id_servicio}`,
+            peso: item.peso_kg,
+            numeroPrendas: item.numero_prendas,
+            precio: Number(item.precio_aplicado),
+            subtotal: Number(item.subtotal),
+            detalles: item.detalles_prendas,
+          };
+        }),
+        total: Number(saleData.costo_total),
+        anotaciones: saleData.anotaciones_generales,
+      };
+
+      generateTicketPDF(ticketData);
+    } catch (error) {
+      console.error("Error al generar ticket:", error);
+      alert("Error al generar el ticket. Por favor, intente nuevamente.");
     }
   };
 
@@ -241,8 +322,8 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
               </svg>
             </button>
 
-            {/* Footer: Total | Atendido por (solo si no está oculto) */}
-            <div className={`border-t border-gray-200 px-6 py-3 bg-gray-50 flex ${hideEmployeeInfo ? 'justify-start' : 'justify-between'} items-center text-sm`}>
+            {/* Footer: Total | Atendido por (solo si no está oculto) | Botón Descargar */}
+            <div className={`border-t border-gray-200 px-6 py-3 bg-gray-50 flex ${hideEmployeeInfo ? 'justify-between' : 'justify-between'} items-center text-sm gap-3`}>
               <div className="flex items-center gap-2">
                 <svg
                   className="w-4 h-4 text-gray-500"
@@ -261,10 +342,46 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
                   Total: ${Number(sale.costo_total).toFixed(2)}
                 </span>
               </div>
-              {!hideEmployeeInfo && (
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                {!hideEmployeeInfo && (
+                  <div className="flex items-center gap-2">
+                    <svg
+                      className="w-4 h-4 text-gray-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <span className="text-gray-600">
+                      Atendido por:{" "}
+                      {employee ? (
+                        <span className="font-medium text-gray-900">
+                          {employee.nombre}
+                        </span>
+                      ) : loadingEmployees ? (
+                        <span className="text-gray-400">Cargando...</span>
+                      ) : (
+                        <span className="text-gray-400">N/A</span>
+                      )}
+                    </span>
+                  </div>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownloadTicket(sale);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-xs font-medium rounded-md shadow-sm transition-all duration-200 hover:shadow-md"
+                  title="Descargar ticket PDF"
+                >
                   <svg
-                    className="w-4 h-4 text-gray-500"
+                    className="w-4 h-4"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -273,23 +390,12 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                     />
                   </svg>
-                  <span className="text-gray-600">
-                    Atendido por:{" "}
-                    {employee ? (
-                      <span className="font-medium text-gray-900">
-                        {employee.nombre}
-                      </span>
-                    ) : loadingEmployees ? (
-                      <span className="text-gray-400">Cargando...</span>
-                    ) : (
-                      <span className="text-gray-400">N/A</span>
-                    )}
-                  </span>
-                </div>
-              )}
+                  Ticket
+                </button>
+              </div>
             </div>
 
             {isExpanded && (
