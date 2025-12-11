@@ -171,6 +171,7 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
             precio: Number(item.precio_aplicado),
             subtotal: Number(item.subtotal),
             detalles: item.detalles_prendas,
+            fechaEntrega: item.fecha_entrega_estimada,
           };
         }),
         total: Number(saleData.costo_total),

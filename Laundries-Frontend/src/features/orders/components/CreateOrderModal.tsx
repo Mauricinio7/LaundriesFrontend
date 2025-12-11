@@ -320,6 +320,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
           precio: Number(item.precio_aplicado),
           subtotal: Number(item.subtotal),
           detalles: item.detalles_prendas,
+          fechaEntrega: item.fecha_entrega_estimada,
         };
       }),
       total: Number(orderWithItems.costo_total),
