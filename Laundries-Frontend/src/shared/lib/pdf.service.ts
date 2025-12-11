@@ -15,38 +15,52 @@ export interface TicketData {
     precio: number;
     subtotal: number;
     detalles?: string;
+    fechaEntrega?: string; // Fecha de entrega estimada del item
   }>;
   total: number;
   anotaciones?: string;
 }
 
 /**
- * Genera y descarga un ticket PDF de venta
+ * Genera y descarga un ticket PDF de venta en formato Ticket (80mm)
  */
 export const generateTicketPDF = (data: TicketData): void => {
+  // 1. Configuración de dimensiones para ticket (80mm ancho estándar)
+  const ticketWidth = 80; 
+  const margin = 5; 
+  
+  // Calculamos una altura estimada para que el PDF no corte contenido
+  // Base para cabecera/pie + espacio por item + espacio por anotaciones
+  const estimatedHeight = 180 + (data.items.length * 10) + (data.anotaciones ? 30 : 0);
+
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
-    format: "a4", // Formato A4
+    format: [ticketWidth, estimatedHeight], // Formato Ticket dinámico
   });
 
-  // Configuración de colores
-  const primaryColor = [0, 0, 0]; // Negro
-  const secondaryColor = [100, 100, 100]; // Gris
+  // Configuración de colores (IGUAL AL ORIGINAL)
+  const primaryColor: [number, number, number] = [0, 0, 0]; // Negro
+  const secondaryColor: [number, number, number] = [100, 100, 100]; // Gris
 
-  // Ancho de página A4: 210mm
-  const pageWidth = 210;
-  const margin = 20;
+  const pageWidth = ticketWidth;
   const contentWidth = pageWidth - (margin * 2);
+  const centerX = pageWidth / 2;
 
   // ===== CABECERA =====
-  doc.setFontSize(24);
-  doc.setFont("helvetica", "bold");
-  doc.text("LAVANDERÍA", pageWidth / 2, 30, { align: "center" });
+  let yPos = 10; // Empezamos más arriba para no desperdiciar papel
 
-  doc.setFontSize(14);
+  doc.setFontSize(16); // Escalado de 24 a 16
+  doc.setFont("helvetica", "bold");
+  doc.text("LAVANDERÍA", centerX, yPos, { align: "center" });
+
+  yPos += 6;
+  doc.setFontSize(10); // Escalado de 14 a 10
   doc.setFont("helvetica", "normal");
-  doc.text(`Sucursal: ${data.sucursalNombre}`, pageWidth / 2, 40, { align: "center" });
+  // splitTextToSize evita que el nombre de la sucursal se salga del ancho
+  const sucursalLines = doc.splitTextToSize(`Sucursal: ${data.sucursalNombre}`, contentWidth);
+  doc.text(sucursalLines, centerX, yPos, { align: "center" });
+  yPos += (sucursalLines.length * 4);
 
   const fechaHora = new Date(data.fecha).toLocaleString("es-ES", {
     year: "numeric",
@@ -55,146 +69,163 @@ export const generateTicketPDF = (data: TicketData): void => {
     hour: "2-digit",
     minute: "2-digit",
   });
-  doc.setFontSize(11);
-  doc.text(`Fecha: ${fechaHora}`, pageWidth / 2, 48, { align: "center" });
+  doc.setFontSize(9); // Escalado de 11 a 9
+  doc.text(`Fecha: ${fechaHora}`, centerX, yPos, { align: "center" });
 
   // Línea separadora
+  yPos += 4;
   doc.setDrawColor(...secondaryColor);
-  doc.line(margin, 55, pageWidth - margin, 55);
+  doc.line(margin, yPos, pageWidth - margin, yPos);
 
   // ===== INFO CLIENTE =====
-  let yPos = 65;
-  doc.setFontSize(12);
+  yPos += 6;
+  doc.setFontSize(10); // Escalado de 12 a 10
   doc.setFont("helvetica", "bold");
   doc.text("CLIENTE", margin, yPos);
   
-  yPos += 7;
+  yPos += 5;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.text(`Nombre: ${data.clienteNombre}`, margin, yPos);
+  doc.setFontSize(9); // Escalado de 11 a 9
+  const nombreClienteLines = doc.splitTextToSize(`Nombre: ${data.clienteNombre}`, contentWidth);
+  doc.text(nombreClienteLines, margin, yPos);
+  yPos += (nombreClienteLines.length * 4);
   
   if (data.clienteTelefono) {
-    yPos += 6;
     doc.text(`Tel: ${data.clienteTelefono}`, margin, yPos);
+    yPos += 4; // Espacio extra si hubo teléfono
   }
 
   // Línea separadora
-  yPos += 8;
+  yPos += 2;
   doc.setDrawColor(...secondaryColor);
   doc.line(margin, yPos, pageWidth - margin, yPos);
 
   // ===== CÓDIGO DE RECOGIDA =====
-  yPos += 10;
-  doc.setFontSize(16);
+  yPos += 6;
+  doc.setFontSize(12); // Escalado de 16 a 12
   doc.setFont("helvetica", "bold");
-  doc.text("CÓDIGO DE RECOGIDA", pageWidth / 2, yPos, { align: "center" });
+  doc.text("CÓDIGO DE RECOGIDA", centerX, yPos, { align: "center" });
   
-  yPos += 8;
-  doc.setFontSize(20);
+  yPos += 7;
+  doc.setFontSize(18); // Escalado de 20 a 18 (Grande)
   doc.setFont("helvetica", "bold");
-  doc.text(data.codigo, pageWidth / 2, yPos, { align: "center" });
+  doc.text(data.codigo, centerX, yPos, { align: "center" });
 
   // Línea separadora
-  yPos += 8;
+  yPos += 5;
   doc.setDrawColor(...secondaryColor);
   doc.line(margin, yPos, pageWidth - margin, yPos);
 
   // ===== TABLA DE ITEMS =====
-  yPos += 8;
+  yPos += 5;
   
-  // Verificar que hay items
   if (!data.items || data.items.length === 0) {
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "italic");
     doc.text("No hay items en esta orden", margin, yPos);
-    console.warn("PDF: No hay items para mostrar en la tabla");
   } else {
-    console.log("PDF: Generando tabla con", data.items.length, "items");
+    // Función para formatear fecha de entrega
+    const formatFechaEntrega = (fecha?: string): string => {
+      if (!fecha) return "N/A";
+      try {
+        const date = new Date(fecha);
+        return date.toLocaleDateString("es-ES", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
+      } catch {
+        return "N/A";
+      }
+    };
+
+    // Mapeo de datos con fecha de entrega
     const tableData = data.items.map((item) => {
       const peso = Number(item.peso) || 0;
       const subtotal = Number(item.subtotal) || 0;
       const prendas = item.numeroPrendas || 0;
       return [
-        item.servicio || "Servicio no especificado",
-        `${peso} kg${prendas > 0 ? ` / ${prendas} prendas` : ""}`,
+        item.servicio || "Servicio",
+        `${peso}kg${prendas > 0 ? `/${prendas}p` : ""}`, // Abreviado ligeramente para caber
+        formatFechaEntrega(item.fechaEntrega),
         `$${subtotal.toFixed(2)}`,
       ];
     });
 
-    console.log("PDF: Datos de la tabla:", tableData);
-
     autoTable(doc, {
       startY: yPos,
-      head: [["Servicio", "Cant/Peso", "Subtotal"]],
+      head: [["Servicio", "Peso/Cant", "Entrega", "Subtotal"]],
       body: tableData,
-      theme: "striped",
+      theme: "striped", // Mismo tema original
       headStyles: {
         fillColor: primaryColor,
         textColor: [255, 255, 255],
         fontStyle: "bold",
-        fontSize: 11,
+        fontSize: 7, // Fuente aún más pequeña para caber 4 columnas
+        halign: 'center'
       },
       bodyStyles: {
-        fontSize: 10,
+        fontSize: 7, // Fuente más pequeña
       },
       columnStyles: {
-        0: { cellWidth: 100 },
-        1: { cellWidth: 50 },
-        2: { cellWidth: 40, halign: "right" },
+        0: { cellWidth: 25, halign: 'left' }, // Servicio
+        1: { cellWidth: 15, halign: 'center' }, // Peso/Cant
+        2: { cellWidth: 18, halign: 'center' }, // Fecha Entrega
+        3: { cellWidth: 12, halign: "right" }, // Subtotal
       },
       margin: { left: margin, right: margin },
       styles: {
-        cellPadding: 4,
+        cellPadding: 1.5, // Padding aún más reducido
+        overflow: 'linebreak'
       },
     });
   }
 
   // Obtener la posición Y después de la tabla
-  const finalY = (doc as any).lastAutoTable.finalY || yPos + 30;
+  const finalY = (doc as any).lastAutoTable.finalY || yPos + 20;
 
   // ===== TOTAL =====
-  let totalY = finalY + 10;
+  let totalY = finalY + 5;
   doc.setDrawColor(...secondaryColor);
   doc.line(margin, totalY, pageWidth - margin, totalY);
   
-  totalY += 8;
-  doc.setFontSize(14);
+  totalY += 6;
+  doc.setFontSize(12); // Escalado de 14 a 12
   doc.setFont("helvetica", "bold");
-  doc.text(`Total a Pagar: $${Number(data.total).toFixed(2)}`, pageWidth / 2, totalY, {
+  doc.text(`Total a Pagar: $${Number(data.total).toFixed(2)}`, centerX, totalY, {
     align: "center",
   });
 
   // ===== ANOTACIONES (si existen) =====
   if (data.anotaciones) {
-    totalY += 10;
-    doc.setFontSize(10);
+    totalY += 6;
+    doc.setFontSize(9);
     doc.setFont("helvetica", "italic");
     doc.text("Anotaciones:", margin, totalY);
-    totalY += 6;
+    totalY += 4;
     const splitAnotaciones = doc.splitTextToSize(data.anotaciones, contentWidth);
     doc.setFont("helvetica", "normal");
     doc.text(splitAnotaciones, margin, totalY);
-    totalY += splitAnotaciones.length * 6;
+    totalY += splitAnotaciones.length * 4;
   }
 
   // ===== FOOTER =====
-  totalY += 10;
+  totalY += 6;
   doc.setDrawColor(...secondaryColor);
   doc.line(margin, totalY, pageWidth - margin, totalY);
   
-  totalY += 8;
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Atendido por: ${data.empleadoNombre}`, pageWidth / 2, totalY, {
-    align: "center",
-  });
-  
   totalY += 6;
+  doc.setFontSize(9); // Escalado de 11 a 9
+  doc.setFont("helvetica", "normal");
+  const empleadoLines = doc.splitTextToSize(`Atendido por: ${data.empleadoNombre}`, contentWidth);
+  doc.text(empleadoLines, centerX, totalY, { align: "center" });
+  totalY += (empleadoLines.length * 4);
+  
+  totalY += 4;
   doc.setFont("helvetica", "italic");
-  doc.setFontSize(12);
-  doc.text("¡Gracias por su preferencia!", pageWidth / 2, totalY, { align: "center" });
+  doc.setFontSize(10); // Escalado de 12 a 10
+  doc.text("¡Gracias por su preferencia!", centerX, totalY, { align: "center" });
 
   // Descargar el PDF
   doc.save(`ticket-${data.codigo}-${Date.now()}.pdf`);
 };
-
