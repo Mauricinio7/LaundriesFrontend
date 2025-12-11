@@ -1,9 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { getSaleDetails, type Sale, type OrderItem } from "../../../shared/lib/order.service";
+import { getClient, type Client } from "../../../shared/lib/client.service";
+import { getEmployeesBySucursal, type Employee } from "../../../shared/lib/employee.service";
 
-interface ActiveSalesListProps {
+export interface ActiveSalesListProps {
   sales: Sale[];
   loading: boolean;
+  idSucursal: string | null;
+  hideEmployeeInfo?: boolean; // Para ocultar "Atendido por" cuando es para empleados
 }
 
 const getStatusColor = (estado: OrderItem["estado"]) => {
@@ -26,10 +30,78 @@ const getStatusColor = (estado: OrderItem["estado"]) => {
 export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
   sales,
   loading,
-}) => {
+  idSucursal,
+  hideEmployeeInfo = false,
+}: ActiveSalesListProps) => {
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
   const [saleDetails, setSaleDetails] = useState<Record<string, Sale>>({});
   const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
+  
+  // Estados para datos humanos
+  const [clients, setClients] = useState<Record<number, Client>>({});
+  const [employees, setEmployees] = useState<Record<string, Employee>>({});
+  const [loadingClients, setLoadingClients] = useState(false);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+
+  // Cargar empleados al montar (solo si no está oculto)
+  useEffect(() => {
+    if (idSucursal && !hideEmployeeInfo) {
+      loadEmployees();
+    }
+  }, [idSucursal, hideEmployeeInfo]);
+
+  // Cargar clientes cuando cambien las ventas
+  useEffect(() => {
+    if (sales.length > 0) {
+      loadClients();
+    }
+  }, [sales]);
+
+  const loadEmployees = async () => {
+    if (!idSucursal) return;
+
+    try {
+      setLoadingEmployees(true);
+      const employeesList = await getEmployeesBySucursal(idSucursal);
+      const employeesMap: Record<string, Employee> = {};
+      employeesList.forEach((emp) => {
+        employeesMap[emp.id] = emp;
+      });
+      setEmployees(employeesMap);
+    } catch (error) {
+      console.error("Error al cargar empleados:", error);
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
+
+  const loadClients = async () => {
+    try {
+      setLoadingClients(true);
+      // Extraer IDs únicos de clientes
+      const uniqueClientIds = [
+        ...new Set(sales.map((sale) => sale.id_cliente)),
+      ].filter((id) => id && !clients[id]);
+
+      if (uniqueClientIds.length === 0) return;
+
+      // Cargar todos los clientes en paralelo
+      const clientPromises = uniqueClientIds.map((id) => getClient(id));
+      const clientsData = await Promise.all(clientPromises);
+
+      // Crear mapa de clientes
+      const clientsMap: Record<number, Client> = { ...clients };
+      clientsData.forEach((client) => {
+        clientsMap[client.id] = client;
+      });
+
+      setClients(clientsMap);
+    } catch (error) {
+      console.error("Error al cargar clientes:", error);
+    } finally {
+      setLoadingClients(false);
+    }
+  };
 
   const toggleSale = async (saleId: string) => {
     if (expandedSales.has(saleId)) {
@@ -40,7 +112,7 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
     } else {
       // Abrir y cargar detalles si no están cargados
       setExpandedSales(new Set([...expandedSales, saleId]));
-      
+
       if (!saleDetails[saleId]) {
         setLoadingDetails(new Set([...loadingDetails, saleId]));
         try {
@@ -84,6 +156,8 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
         const isExpanded = expandedSales.has(sale.id);
         const details = saleDetails[sale.id] || sale;
         const isLoadingDetails = loadingDetails.has(sale.id);
+        const client = clients[sale.id_cliente];
+        const employee = employees[sale.id_empleado];
 
         return (
           <div
@@ -95,8 +169,34 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
               className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
             >
               <div className="flex-1 text-left">
+                {/* Header: Nombre Cliente | Código */}
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="font-semibold text-gray-900">
+                  {client ? (
+                    <div className="flex items-center gap-2">
+                      <svg
+                        className="w-5 h-5 text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                        />
+                      </svg>
+                      <span className="font-semibold text-gray-900">
+                        {client.nombre}
+                      </span>
+                    </div>
+                  ) : loadingClients ? (
+                    <span className="text-sm text-gray-400">Cargando...</span>
+                  ) : (
+                    <span className="text-sm text-gray-400">Cliente #{sale.id_cliente}</span>
+                  )}
+                  <span className="text-gray-400">|</span>
+                  <span className="font-semibold text-gray-700">
                     Código: {sale.codigo_recogida}
                   </span>
                   <span className="text-sm text-gray-500">
@@ -107,9 +207,8 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
                     })}
                   </span>
                 </div>
-                <div className="text-sm text-gray-600">
-                  Total: ${Number(sale.costo_total).toFixed(2)}
-                </div>
+
+                {/* Body: Estados de items */}
                 {sale.items && sale.items.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {sale.items.map((item) => (
@@ -141,6 +240,57 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
                 />
               </svg>
             </button>
+
+            {/* Footer: Total | Atendido por (solo si no está oculto) */}
+            <div className={`border-t border-gray-200 px-6 py-3 bg-gray-50 flex ${hideEmployeeInfo ? 'justify-start' : 'justify-between'} items-center text-sm`}>
+              <div className="flex items-center gap-2">
+                <svg
+                  className="w-4 h-4 text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <span className="font-medium text-gray-900">
+                  Total: ${Number(sale.costo_total).toFixed(2)}
+                </span>
+              </div>
+              {!hideEmployeeInfo && (
+                <div className="flex items-center gap-2">
+                  <svg
+                    className="w-4 h-4 text-gray-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <span className="text-gray-600">
+                    Atendido por:{" "}
+                    {employee ? (
+                      <span className="font-medium text-gray-900">
+                        {employee.nombre}
+                      </span>
+                    ) : loadingEmployees ? (
+                      <span className="text-gray-400">Cargando...</span>
+                    ) : (
+                      <span className="text-gray-400">N/A</span>
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
 
             {isExpanded && (
               <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
@@ -227,4 +377,3 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
     </div>
   );
 };
-

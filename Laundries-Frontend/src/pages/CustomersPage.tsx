@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useAuth } from "../features/Login/AuthProvider";
 import { useClients } from "../features/customers/hooks/useClients";
 import { useCustomerForm } from "../features/customers/hooks/useCustomerForm";
@@ -8,6 +8,7 @@ import { LoadingSpinner } from "../features/customers/components/LoadingSpinner"
 import { ErrorAlert } from "../features/customers/components/ErrorAlert";
 import { CreateOrderModal } from "../features/orders/components/CreateOrderModal";
 import { ClientActiveSales } from "../features/orders/components/ClientActiveSales";
+import { SearchBar } from "../shared/ui/SearchBar";
 import type { Client } from "../shared/lib/client.service";
 
 const CustomersPage: React.FC = () => {
@@ -40,6 +41,9 @@ const CustomersPage: React.FC = () => {
   const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
   const [isActiveSalesOpen, setIsActiveSalesOpen] = useState(false);
   const [clientForActiveSales, setClientForActiveSales] = useState<Client | null>(null);
+  
+  // Estado para búsqueda/filtrado
+  const [searchClient, setSearchClient] = useState<Client | null>(null);
 
   const isAdmin = user?.role === "ADMIN";
   const idSucursal = profile?.idSucursal || "";
@@ -126,6 +130,22 @@ const CustomersPage: React.FC = () => {
     setClientForActiveSales(null);
   };
 
+  const handleSearchSelect = (client: Client) => {
+    setSearchClient(client);
+  };
+
+  const handleSearchClear = () => {
+    setSearchClient(null);
+  };
+
+  // Filtrar clientes basado en la búsqueda
+  const filteredClients = useMemo(() => {
+    if (!searchClient) {
+      return clients;
+    }
+    return clients.filter((client) => client.id === searchClient.id);
+  }, [clients, searchClient]);
+
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -163,14 +183,62 @@ const CustomersPage: React.FC = () => {
 
         <ErrorAlert message={error || submitError || ""} />
 
+        {/* Barra de búsqueda */}
+        <div className="mb-6">
+          <div className="bg-white rounded-lg shadow p-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Buscar Cliente
+            </label>
+            <SearchBar
+              onSelectClient={handleSearchSelect}
+              onClear={handleSearchClear}
+              placeholder="Buscar por nombre, teléfono o correo..."
+            />
+            {searchClient && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      Filtrando por: {searchClient.nombre}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {searchClient.correo} • {searchClient.telefono}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSearchClear}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    Limpiar filtro
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         <CustomerTable
-          clients={clients}
+          clients={filteredClients}
           onEdit={handleEdit}
           onDelete={handleDeleteClick}
           onNewSale={handleNewSale}
           onViewActiveSales={handleViewActiveSales}
           isAdmin={isAdmin}
         />
+
+        {filteredClients.length === 0 && clients.length > 0 && (
+          <div className="mt-4 text-center p-8 bg-white rounded-lg shadow">
+            <p className="text-gray-500 text-lg mb-4">
+              No se encontraron clientes con el filtro aplicado
+            </p>
+            <button
+              onClick={handleSearchClear}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Limpiar filtro
+            </button>
+          </div>
+        )}
 
         {clients.length === 0 && (
           <div className="mt-4 text-center">
