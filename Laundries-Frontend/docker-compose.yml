@@ -1,0 +1,9 @@
+services:
+  laundries_front:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laundries_front
+    ports:
+      - "8080:80"
+    restart: unless-stopped
