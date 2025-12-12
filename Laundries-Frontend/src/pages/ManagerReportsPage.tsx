@@ -1,137 +1,113 @@
-export default function ManagerReports() {
+import { useEffect, useState } from "react";
+import { useManagerReports } from "../features/managerReports/hooks/useManagerReports";
+
+import { YearSelector } from "../features/adminReports/components/YearSelector";
+import { SalesChart } from "../features/adminReports/components/SalesChart";
+import { TopEmployeesChart } from "../features/adminReports/components/TopEmployeesChart";
+
+import {
+  exportReportToPDF,
+  exportReportToExcel,
+} from "../features/adminReports/utils/exportReports";
+
+export default function ManagerReportsPage() {
+  const raw = localStorage.getItem("laundries:auth");
+  const profile = raw ? JSON.parse(raw).profile : null;
+
+  const idSucursal = profile?.idSucursal;
+
+  const [year, setYear] = useState(new Date().getFullYear());
+  const { report, loading, loadReport } = useManagerReports();
+
+  // cargar reporte inicial
+  useEffect(() => {
+    if (idSucursal) loadReport(idSucursal, year);
+  }, []);
+
+  function handleYearChange(anio: number) {
+    setYear(anio);
+    if (idSucursal) loadReport(idSucursal, anio);
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Reportes del Manager
-          </h1>
-        </div>
+    <div className="p-6 space-y-6">
+      <h1 className="text-3xl font-bold">Reportes de Sucursal</h1>
+
+      <p className="text-gray-700 text-lg">
+        Sucursal: <strong>{profile?.nombreSucursal ?? idSucursal}</strong>
+      </p>
+
+      {/* SELECTOR DE AÑO */}
+      <div className="flex items-center gap-4">
+        <p className="text-lg">Seleccionar año:</p>
+        <YearSelector value={year} onChange={handleYearChange} />
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Filtros</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fecha Inicio
-              </label>
-              <input
-                type="date"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fecha Fin
-              </label>
-              <input
-                type="date"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tipo de Reporte
-              </label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option>Todos</option>
-                <option>Ventas</option>
-                <option>Clientes</option>
-                <option>Ingresos</option>
-              </select>
-            </div>
-          </div>
-          <button className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition">
-            Aplicar Filtros
+      {/* BOTONES DE DESCARGA */}
+      {report && (
+        <div className="flex gap-4 mt-4">
+          <button
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow"
+            onClick={() => exportReportToPDF(report)}
+          >
+            Descargar PDF
+          </button>
+
+          <button
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow"
+            onClick={() => exportReportToExcel(report)}
+          >
+            Descargar Excel
           </button>
         </div>
+      )}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-gray-600 text-sm font-medium">Total Ingresos</p>
-            <p className="text-3xl font-bold text-gray-900 mt-2">$45,230</p>
-            <p className="text-green-600 text-sm mt-2">+12% vs mes anterior</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-gray-600 text-sm font-medium">Total Órdenes</p>
-            <p className="text-3xl font-bold text-gray-900 mt-2">1,284</p>
-            <p className="text-green-600 text-sm mt-2">+8% vs mes anterior</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-gray-600 text-sm font-medium">
-              Clientes Activos
-            </p>
-            <p className="text-3xl font-bold text-gray-900 mt-2">542</p>
-            <p className="text-green-600 text-sm mt-2">+5% vs mes anterior</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-gray-600 text-sm font-medium">
-              Promedio por Orden
-            </p>
-            <p className="text-3xl font-bold text-gray-900 mt-2">$35.24</p>
-            <p className="text-red-600 text-sm mt-2">-2% vs mes anterior</p>
+      {loading && <p className="text-gray-600">Cargando reportes...</p>}
+
+      {report && (
+        <div className="space-y-8">
+          {/* GRÁFICA DE VENTAS */}
+          <SalesChart ventasTotales={report.ventas_totales} />
+
+          {/* TOP EMPLEADOS */}
+          <TopEmployeesChart empleados={report.top_empleados} />
+
+          {/* DETALLE */}
+          <div className="bg-white p-4 rounded-xl shadow">
+            <h3 className="text-lg font-bold mb-3">Detalle de la Sucursal</h3>
+
+            {report.detalle_por_sucursal.length === 0 ? (
+              <p className="text-gray-600">Sin datos disponibles.</p>
+            ) : (
+              report.detalle_por_sucursal.map((s: any) => {
+                const meses = Object.keys(s.ventas);
+                const total = meses.reduce(
+                  (acc, mes) => acc + s.ventas[mes],
+                  0
+                );
+
+                return (
+                  <div key={s.sucursal_id} className="border rounded-lg p-3 mb-3">
+                    <p className="font-bold text-lg">{s.sucursal}</p>
+
+                    {meses.length === 0 ? (
+                      <p className="text-gray-600">No hubo ventas este año.</p>
+                    ) : (
+                      <>
+                        <p>
+                          Total anual:{" "}
+                          <strong>${total.toFixed(2)}</strong>
+                        </p>
+                        <p>Meses: {meses.join(", ")}</p>
+                      </>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
-
-        {/* Reports Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">
-              Detalle de Reportes
-            </h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Fecha
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Tipo
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Descripción
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Monto
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Estado
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {[1, 2, 3, 4, 5].map((item) => (
-                  <tr key={item} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      2024-01-{15 + item}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">Ventas</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      Reporte diario de ingresos
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      $2,450
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                        Completado
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
