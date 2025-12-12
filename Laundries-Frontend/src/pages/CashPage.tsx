@@ -1,133 +1,121 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import { useCash } from "../features/cash/hooks/useCash";
 
 export default function CashPage() {
-  const [cashRegister, setCashRegister] = useState({
-    openingBalance: 0,
-    sales: 0,
-    expenses: 0,
-    closingBalance: 0,
-    date: new Date().toISOString().split("T")[0],
+  const { loading, result, generateCut } = useCash();
+
+  const raw = localStorage.getItem("laundries:auth");
+  const auth = raw ? JSON.parse(raw) : null;
+  const profile = auth?.profile;
+
+  const [form, setForm] = useState({
+    fecha_inicio: "",
+    fecha_fin: "",
+    dinero_inicial: 0,
+    monto_reportado_por_empleado: 0
   });
 
-  const [cutHistory, setCutHistory] = useState([]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  function handleChange(e: any) {
     const { name, value } = e.target;
-    setCashRegister({
-      ...cashRegister,
-      [name]: parseFloat(value) || 0,
+    setForm({
+      ...form,
+      [name]: value
     });
-  };
+  }
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCashRegister({
-      ...cashRegister,
-      date: e.target.value,
+  async function handleSubmit(e: any) {
+    e.preventDefault();
+
+    await generateCut({
+      sucursal_id: profile.idSucursal,
+      fecha_inicio: form.fecha_inicio,
+      fecha_fin: form.fecha_fin,
+      dinero_inicial: Number(form.dinero_inicial),
+      monto_reportado_por_empleado: Number(form.monto_reportado_por_empleado)
     });
-  };
-
-  const handleCashCut = () => {
-    const newCut = {
-      id: Date.now(),
-      ...cashRegister,
-      total:
-        cashRegister.openingBalance +
-        cashRegister.sales -
-        cashRegister.expenses,
-    };
-  };
+  }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <h1 className="text-3xl font-bold mb-6">Corte de Caja</h1>
+    <div className="p-6 space-y-6">
+      <h1 className="text-3xl font-bold mb-4">Corte de Caja</h1>
 
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Fecha</label>
-            <input
-              type="date"
-              name="date"
-              value={cashRegister.date}
-              onChange={handleDateChange}
-              className="w-full border rounded px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Saldo Inicial
-            </label>
-            <input
-              type="number"
-              name="openingBalance"
-              value={cashRegister.openingBalance}
-              onChange={handleInputChange}
-              className="w-full border rounded px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Ventas</label>
-            <input
-              type="number"
-              name="sales"
-              value={cashRegister.sales}
-              onChange={handleInputChange}
-              className="w-full border rounded px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Gastos</label>
-            <input
-              type="number"
-              name="expenses"
-              value={cashRegister.expenses}
-              onChange={handleInputChange}
-              className="w-full border rounded px-3 py-2"
-            />
-          </div>
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white p-6 rounded-xl shadow space-y-4 max-w-md"
+      >
+        <div>
+          <label className="block font-semibold">Fecha Inicio</label>
+          <input
+            type="date"
+            name="fecha_inicio"
+            value={form.fecha_inicio}
+            onChange={handleChange}
+            className="border p-2 w-full rounded"
+            required
+          />
         </div>
 
-        <div className="bg-blue-50 p-4 rounded mb-4">
-          <p className="text-lg font-semibold">
-            Total: $
-            {(
-              cashRegister.openingBalance +
-              cashRegister.sales -
-              cashRegister.expenses
-            ).toFixed(2)}
-          </p>
+        <div>
+          <label className="block font-semibold">Fecha Fin</label>
+          <input
+            type="date"
+            name="fecha_fin"
+            value={form.fecha_fin}
+            onChange={handleChange}
+            className="border p-2 w-full rounded"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block font-semibold">Dinero inicial</label>
+          <input
+            type="number"
+            name="dinero_inicial"
+            value={form.dinero_inicial}
+            onChange={handleChange}
+            className="border p-2 w-full rounded"
+          />
+        </div>
+
+        <div>
+          <label className="block font-semibold">Monto reportado por empleado</label>
+          <input
+            type="number"
+            name="monto_reportado_por_empleado"
+            value={form.monto_reportado_por_empleado}
+            onChange={handleChange}
+            className="border p-2 w-full rounded"
+            required
+          />
         </div>
 
         <button
-          onClick={handleCashCut}
-          className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700"
+          type="submit"
+          disabled={loading}
+          className="w-full bg-blue-600 text-white py-2 rounded-lg"
         >
-          Realizar Corte
+          {loading ? "Generando corte..." : "Generar Corte"}
         </button>
-      </div>
+      </form>
 
-      <div>
-        <h2 className="text-2xl font-bold mb-4">Historial de Cortes</h2>
-        {cutHistory.length === 0 ? (
-          <p className="text-gray-500">No hay cortes realizados</p>
-        ) : (
-          <div className="space-y-4">
-            {cutHistory.map((cut: any) => (
-              <div key={cut.id} className="bg-white rounded-lg shadow p-4">
-                <p className="font-semibold">{cut.date}</p>
-                <p className="text-sm">
-                  Inicial: ${cut.openingBalance.toFixed(2)}
-                </p>
-                <p className="text-sm">Ventas: ${cut.sales.toFixed(2)}</p>
-                <p className="text-sm">Gastos: ${cut.expenses.toFixed(2)}</p>
-                <p className="text-lg font-bold">
-                  Total: ${cut.total.toFixed(2)}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {result && (
+        <div className="bg-white p-6 rounded-xl shadow max-w-md">
+          <h3 className="text-xl font-bold mb-3">Resultado del Corte</h3>
+
+          <p><strong>Total ventas:</strong> ${result.total_ventas}</p>
+          <p><strong>Total devoluciones:</strong> ${result.total_devoluciones}</p>
+          <p><strong>Dinero inicial:</strong> ${result.dinero_inicial}</p>
+          <p><strong>Reportado por empleado:</strong> ${result.monto_reportado_por_empleado}</p>
+          <p><strong>Diferencia:</strong> ${result.diferencia}</p>
+
+          <hr className="my-3" />
+
+          <p className="text-sm text-gray-500">
+            Corte generado el: {new Date(result.created_at).toLocaleString()}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
