@@ -115,7 +115,6 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
 
   const loadServices = async () => {
     try {
-      const { getAllActiveServices } = await import("../../../shared/lib/service.service");
       const servicesList = await getAllActiveServices();
       const servicesMap: Record<number, Service> = {};
       servicesList.forEach((service) => {

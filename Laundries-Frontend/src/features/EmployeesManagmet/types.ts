@@ -1,10 +1,10 @@
 export type Employee = {
-  id: string;
+  id: string;                 
   nombre: string;
   telefono: string;
   direccion: string;
   dni: string;
-  fechaNacimiento: string;
+  fechaNacimiento: string;    
   idSucursal: string;
 };
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { getAllActiveServices, type Service } from "../../../shared/lib/service.service";
 import { createOrder, type CreateOrderData, type Sale } from "../../../shared/lib/order.service";
-import { getEmployeesBySucursal, type Employee } from "../../../shared/lib/employee.service";
+import { getEmployeesBySucursal } from "../../../shared/lib/employee.service";
 import { getBranchById } from "../../../shared/lib/branch.service";
 import { generateTicketPDF, type TicketData } from "../../../shared/lib/pdf.service";
 import type { Client } from "../../../shared/lib/client.service";

@@ -17,16 +17,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+
   const searchRef = useRef<HTMLDivElement>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cerrar resultados al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        searchRef.current &&
-        !searchRef.current.contains(event.target as Node)
-      ) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowResults(false);
       }
     };
@@ -43,35 +41,40 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       clearTimeout(debounceTimerRef.current);
     }
 
-    if (searchTerm.trim().length === 0) {
+    const term = searchTerm.trim();
+
+    if (term.length === 0) {
       setResults([]);
       setShowResults(false);
+      setLoading(false);
       return;
     }
 
-    if (searchTerm.trim().length < 2) {
+    if (term.length < 2) {
+      setShowResults(false);
+      setLoading(false);
       return;
     }
 
     setLoading(true);
+
     debounceTimerRef.current = setTimeout(async () => {
       try {
         const { getAllClients } = await import("../lib/client.service");
-        const clients = await getAllClients(searchTerm.trim());
+        const clients = await getAllClients(term);
         setResults(clients);
         setShowResults(true);
       } catch (error) {
         console.error("Error al buscar clientes:", error);
         setResults([]);
+        setShowResults(true);
       } finally {
         setLoading(false);
       }
     }, 300);
 
     return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
   }, [searchTerm]);
 
@@ -98,20 +101,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           onFocus={() => {
-            if (results.length > 0) {
-              setShowResults(true);
-            }
+            if (results.length > 0) setShowResults(true);
           }}
           placeholder={placeholder}
           className="w-full px-4 py-2 pl-10 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
+
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <svg
-            className="h-5 w-5 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
+          <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -120,23 +117,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             />
           </svg>
         </div>
+
         {selectedClient && (
-          <button
-            onClick={handleClear}
-            className="absolute inset-y-0 right-0 pr-3 flex items-center"
-          >
-            <svg
-              className="h-5 w-5 text-gray-400 hover:text-gray-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
+          <button onClick={handleClear} className="absolute inset-y-0 right-0 pr-3 flex items-center">
+            <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         )}
@@ -167,14 +152,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         </div>
       )}
 
-      {showResults && !loading && results.length === 0 && searchTerm.length >= 2 && (
+      {showResults && !loading && results.length === 0 && searchTerm.trim().length >= 2 && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-4">
-          <p className="text-gray-500 text-center">
-            No se encontraron clientes
-          </p>
+          <p className="text-gray-500 text-center">No se encontraron clientes</p>
         </div>
       )}
     </div>
   );
 };
-
