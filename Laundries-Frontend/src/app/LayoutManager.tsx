@@ -1,8 +1,48 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { PAGE_PATH } from "./routeManager/pages.paths";
 import style from "../shared/styles/AppLayout.module.css";
 import { useAuth } from "../features/Login/AuthProvider";
+
+type StoredAuth = {
+  accessToken?: string;
+  profile?: { idSucursal?: string };
+};
+
+type ClaveCancelacionResponse = {
+  sucursal_id?: string;
+  clave_cancelacion?: string;
+};
+
+const SUCURSALES_API = "http://100.68.70.25:8881";
+
+function readSucursalAuthFromStorage(): { token: string; idSucursal: string } {
+  try {
+    const raw = localStorage.getItem("laundries:auth");
+    if (!raw) return { token: "", idSucursal: "" };
+    const parsed = JSON.parse(raw) as StoredAuth;
+    return {
+      token: parsed.accessToken ?? "",
+      idSucursal: parsed.profile?.idSucursal ?? "",
+    };
+  } catch {
+    return { token: "", idSucursal: "" };
+  }
+}
+
+async function fetchClaveCancelacion(idSucursal: string, token: string): Promise<string> {
+  const res = await fetch(`${SUCURSALES_API}/sucursales/${idSucursal}/clave-devolucion`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) throw new Error("ERROR_FETCHING_CLAVE");
+
+  const json = (await res.json()) as ClaveCancelacionResponse;
+  return json?.clave_cancelacion ?? "";
+}
 
 const HomeIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
@@ -106,10 +146,7 @@ const LogoutIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 const BubblesBackground = () => (
-  <svg
-    viewBox="0 0 120 260"
-    className="absolute inset-0 pointer-events-none opacity-40"
-  >
+  <svg viewBox="0 0 120 260" className="absolute inset-0 pointer-events-none opacity-40">
     <circle cx="20" cy="30" r="10" fill="#e0f2fe" />
     <circle cx="45" cy="70" r="14" fill="#bae6fd" />
     <circle cx="25" cy="120" r="9" fill="#e0f2fe" />
@@ -123,6 +160,40 @@ export default function LayoutManager() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
+
+  // ✅ clave cancelación
+  const [claveCancelacion, setClaveCancelacion] = useState<string>("");
+  const [claveLoading, setClaveLoading] = useState(false);
+  const [claveError, setClaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadClave() {
+      const { token, idSucursal } = readSucursalAuthFromStorage();
+
+      if (!token || !idSucursal) return;
+
+      setClaveLoading(true);
+      setClaveError(null);
+
+      try {
+        const clave = await fetchClaveCancelacion(idSucursal, token);
+        if (!cancelled) setClaveCancelacion(clave);
+      } catch {
+        if (!cancelled) setClaveError("—");
+      } finally {
+        if (!cancelled) setClaveLoading(false);
+      }
+    }
+
+    // carga 1 vez cuando haya user (y si cambias de cuenta se vuelve a disparar)
+    if (user?.email) loadClave();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.email]);
 
   const handleLogout = () => {
     logout();
@@ -166,11 +237,7 @@ export default function LayoutManager() {
               }
             >
               <HomeIcon className="h-8 w-8 flex-shrink-0" />
-              <span
-                className={`whitespace-nowrap transition-opacity ${
-                  expanded ? "opacity-100" : "opacity-0"
-                }`}
-              >
+              <span className={`whitespace-nowrap transition-opacity ${expanded ? "opacity-100" : "opacity-0"}`}>
                 Home
               </span>
             </NavLink>
@@ -187,11 +254,7 @@ export default function LayoutManager() {
               }
             >
               <EmployeesIcon className="h-8 w-8 flex-shrink-0" />
-              <span
-                className={`whitespace-nowrap transition-opacity ${
-                  expanded ? "opacity-100" : "opacity-0"
-                }`}
-              >
+              <span className={`whitespace-nowrap transition-opacity ${expanded ? "opacity-100" : "opacity-0"}`}>
                 Empleados
               </span>
             </NavLink>
@@ -208,11 +271,7 @@ export default function LayoutManager() {
               }
             >
               <ReportsIcon className="h-8 w-8 flex-shrink-0" />
-              <span
-                className={`whitespace-nowrap transition-opacity ${
-                  expanded ? "opacity-100" : "opacity-0"
-                }`}
-              >
+              <span className={`whitespace-nowrap transition-opacity ${expanded ? "opacity-100" : "opacity-0"}`}>
                 Reportes
               </span>
             </NavLink>
@@ -229,11 +288,7 @@ export default function LayoutManager() {
               }
             >
               <OrdersIcon className="h-8 w-8 flex-shrink-0" />
-              <span
-                className={`whitespace-nowrap transition-opacity ${
-                  expanded ? "opacity-100" : "opacity-0"
-                }`}
-              >
+              <span className={`whitespace-nowrap transition-opacity ${expanded ? "opacity-100" : "opacity-0"}`}>
                 Pedidos
               </span>
             </NavLink>
@@ -249,10 +304,18 @@ export default function LayoutManager() {
                 <div className="h-12 w-12 bg-sky-200 rounded-lg flex items-center justify-center text-xl font-bold text-sky-700 shadow-sm">
                   {user.email.charAt(0).toUpperCase()}
                 </div>
-                <div className="flex flex-col">
-                  <span className="font-medium truncate text-[14px]">
-                    {user.email}
+
+                <div className="flex flex-col min-w-0">
+                  {/* ✅ CLAVE arriba */}
+                  <span className="text-[11px] text-slate-500">
+                    Clave cancelación:{" "}
+                    <span className="font-mono font-semibold text-slate-700">
+                      {claveLoading ? "Cargando..." : claveError ? "—" : claveCancelacion || "—"}
+                    </span>
                   </span>
+
+                  <span className="font-medium truncate text-[14px]">{user.email}</span>
+
                   <span className="uppercase tracking-wide text-[11px] text-sky-600">
                     {user.role}
                   </span>
@@ -266,11 +329,7 @@ export default function LayoutManager() {
               className="w-full flex items-center gap-4 px-3 py-3 rounded-xl text-base font-semibold text-red-600 hover:bg-red-50 transition-colors"
             >
               <LogoutIcon className="h-8 w-8 flex-shrink-0" />
-              <span
-                className={`whitespace-nowrap transition-opacity ${
-                  expanded ? "opacity-100" : "opacity-0"
-                }`}
-              >
+              <span className={`whitespace-nowrap transition-opacity ${expanded ? "opacity-100" : "opacity-0"}`}>
                 Salir
               </span>
             </button>
