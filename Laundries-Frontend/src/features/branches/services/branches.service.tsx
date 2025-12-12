@@ -18,7 +18,6 @@ function authHeaders() {
     return headers;
   }
 
-// GET sucursales
 export async function getBranches() {
   const res = await fetch(BASE_URL, {
     method: "GET",
@@ -33,7 +32,6 @@ export async function getBranches() {
   return res.json();
 }
 
-// PUT sucursales/:id
 export async function updateBranch(id: string, data: any) {
   const res = await fetch(`${BASE_URL}/${id}`, {
     method: "PUT",
@@ -49,7 +47,6 @@ export async function updateBranch(id: string, data: any) {
   return res.json();
 }
 
-// PUT sucursales/:id → estado=false
 export async function deactivateBranch(id: string) {
   const res = await fetch(`${BASE_URL}/${id}`, {
     method: "PUT",
@@ -61,6 +58,24 @@ export async function deactivateBranch(id: string) {
     console.error("ERROR CANCELAR:", await res.text());
     throw new Error("No autorizado para cancelar sucursal");
   }
+
+  return res.json();
+}
+
+export async function createBranch(data: any) {
+  const raw = localStorage.getItem("laundries:auth");
+  const token = raw ? JSON.parse(raw)?.accessToken : null;
+
+  const res = await fetch("http://100.68.70.25:8881/sucursales", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(data)
+  });
+
+  if (!res.ok) throw new Error("Error creando sucursal");
 
   return res.json();
 }

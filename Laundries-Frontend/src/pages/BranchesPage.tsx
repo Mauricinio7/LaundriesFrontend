@@ -7,9 +7,17 @@ import { EditBranchModal } from "../features/branches/components/EditBranchModal
 import { AddManagerModal } from "../features/branches/components/AddManagerModal";
 import { EditEmployeeModal } from "../features/branches/components/EditEmployeeModal";
 import { EmployeesBySucursalModal } from "../features/branches/components/EmployeesBySucursalModal";
+import { AddBranchModal } from "../features/branches/components/AddBranchModal";
 
 export default function BranchesPage() {
-  const { branches, loading, editBranch, cancelBranch } = useBranches();
+  const {
+    branches,
+    loading,
+    editBranch,
+    cancelBranch,
+    addBranch,        
+  } = useBranches();
+
   const {
     employees,
     loading: loadingEmployees,
@@ -21,6 +29,7 @@ export default function BranchesPage() {
   const [openAddManager, setOpenAddManager] = useState(false);
   const [openEmployeesModal, setOpenEmployeesModal] = useState(false);
   const [openEditEmployee, setOpenEditEmployee] = useState(false);
+  const [openAddBranch, setOpenAddBranch] = useState(false); 
 
   const [selectedBranch, setSelectedBranch] = useState<any>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
@@ -29,7 +38,17 @@ export default function BranchesPage() {
 
   return (
     <div className="p-6 space-y-8">
-      <h1 className="text-3xl font-bold mb-4">Sucursales</h1>
+
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Sucursales</h1>
+
+        <button
+          onClick={() => setOpenAddBranch(true)}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition"
+        >
+          + Agregar Sucursal
+        </button>
+      </div>
 
       <div className="space-y-4">
         {branches.map((branch: any) => (
@@ -53,9 +72,16 @@ export default function BranchesPage() {
         ))}
       </div>
 
-      {/* MODALES */}
 
-      {/* Editar Sucursal */}
+      <AddBranchModal
+        open={openAddBranch}
+        onClose={() => setOpenAddBranch(false)}
+        onCreate={async (payload: { nombre: string; direccion: string; telefono: string }) => {
+          await addBranch(payload);
+          setOpenAddBranch(false);
+        }}
+      />
+
       <EditBranchModal
         open={openEditBranch}
         branch={selectedBranch}
@@ -64,7 +90,6 @@ export default function BranchesPage() {
         onCancel={cancelBranch}
       />
 
-      {/* Agregar Gerente */}
       <AddManagerModal
         open={openAddManager}
         branch={selectedBranch}
@@ -72,7 +97,6 @@ export default function BranchesPage() {
         onCreate={() => {}}
       />
 
-      {/* Ver empleados por sucursal */}
       <EmployeesBySucursalModal
         open={openEmployeesModal}
         branch={selectedBranch}
@@ -85,7 +109,6 @@ export default function BranchesPage() {
         }}
       />
 
-      {/* Editar Empleado */}
       <EditEmployeeModal
         open={openEditEmployee}
         employee={selectedEmployee}

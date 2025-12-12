@@ -1,8 +1,21 @@
 import { useEffect, useState } from "react";
-import { getBranches, updateBranch, deactivateBranch } from "../services/branches.service";
+import {
+  getBranches,
+  updateBranch,
+  deactivateBranch,
+  createBranch,
+} from "../services/branches.service";
+
+type Branch = {
+  id: string;
+  nombre: string;
+  direccion: string;
+  telefono: string;
+  estado: boolean;
+};
 
 export function useBranches() {
-  const [branches, setBranches] = useState([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -22,7 +35,22 @@ export function useBranches() {
     await load();
   }
 
-  useEffect(() => { load(); }, []);
+  async function addBranch(payload: any) {
+    const newBranch = await createBranch(payload);
 
-  return { branches, loading, editBranch, cancelBranch, reload: load };
+    setBranches((prev) => [...prev, newBranch]); 
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  return {
+    branches,
+    loading,
+    editBranch,
+    cancelBranch,
+    addBranch,
+    reload: load,
+  };
 }

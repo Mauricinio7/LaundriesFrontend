@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { makeCashCut, CashRequest } from "../services/cash.service";
+import type { CashRequest } from "../services/cash.service";
+import { makeCashCut } from "../services/cash.service";
 
 export function useCash() {
   const [loading, setLoading] = useState(false);
