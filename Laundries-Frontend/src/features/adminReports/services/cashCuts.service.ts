@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:8886/corte-caja";
+const BASE_URL = "http://100.68.70.25:8886/corte-caja";
 
 function authHeaders() {
   const raw = localStorage.getItem("laundries:auth");

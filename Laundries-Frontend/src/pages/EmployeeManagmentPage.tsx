@@ -700,9 +700,6 @@ export default function EmployeeManagementPage() {
               </div>
             </form>
 
-            <p className="mt-3 text-xs text-gray-400">
-              Se crea primero la cuenta (auth) y luego el empleado (employees).
-            </p>
           </div>
         </div>
       )}
@@ -790,10 +787,6 @@ export default function EmployeeManagementPage() {
                 </button>
               </div>
             </form>
-
-            <p className="mt-3 text-xs text-gray-400">
-              La sucursal no se modifica (se envía la misma idSucursal del empleado).
-            </p>
           </div>
         </div>
       )}
@@ -811,9 +804,6 @@ export default function EmployeeManagementPage() {
             <p className="text-sm text-gray-700">
               ¿Seguro que quieres desactivar la cuenta de{" "}
               <span className="font-semibold">{deleting.nombre}</span>?
-            </p>
-            <p className="mt-2 text-xs text-gray-500">
-              Esto deja el rol como <span className="font-semibold">Eliminado</span>.
             </p>
 
             {deleteError && (
