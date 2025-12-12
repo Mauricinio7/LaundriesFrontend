@@ -10,6 +10,27 @@ import {
   exportReportToExcel,
 } from "../features/adminReports/utils/exportReports";
 
+import { getCashCutsByYear } from "../features/adminReports/services/cashCuts.service";
+
+interface CorteCaja {
+  id: number;
+  sucursal_id: string;
+  empleado_id: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  created_at: string;
+  total_ventas: string;
+  total_devoluciones: string;
+  dinero_inicial: string;
+  monto_reportado_por_empleado: string;
+  diferencia: string;
+}
+
+interface MesCortes {
+  mes: number;
+  cortes: CorteCaja[];
+}
+
 export default function AdminReportsPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const { report, loading, loadReport } = useReports();
@@ -22,6 +43,58 @@ export default function AdminReportsPage() {
     setYear(anio);
     loadReport(anio);
   }
+
+  async function downloadCashCuts() {
+    try {
+      const data: MesCortes[] = await getCashCutsByYear(year);
+
+      if (!data || data.length === 0) {
+        alert("No hay cortes de caja registrados para este año.");
+        return;
+      }
+
+      const rows: any[] = [];
+
+      data.forEach((m: MesCortes) => {
+        const mes = m.mes;
+
+        m.cortes.forEach((corte: CorteCaja) => {
+          rows.push({
+            mes,
+            id_corte: corte.id,
+            sucursal_id: corte.sucursal_id,
+            empleado_id: corte.empleado_id,
+            fecha_inicio: corte.fecha_inicio,
+            fecha_fin: corte.fecha_fin,
+            total_ventas: corte.total_ventas,
+            total_devoluciones: corte.total_devoluciones,
+            dinero_inicial: corte.dinero_inicial,
+            monto_reportado_por_empleado: corte.monto_reportado_por_empleado,
+            diferencia: corte.diferencia,
+          });
+        });
+      });
+
+      const header = Object.keys(rows[0]).join(",") + "\n";
+      const body = rows.map((r) => Object.values(r).join(",")).join("\n");
+
+      const csv = header + body;
+
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `cortes_caja_${year}.csv`;
+      a.click();
+
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert("No se pudieron obtener los cortes de caja");
+    }
+  }
+
 
   return (
     <div className="p-6 space-y-6">
@@ -47,6 +120,13 @@ export default function AdminReportsPage() {
           >
             Descargar Excel
           </button>
+
+          <button
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow"
+            onClick={downloadCashCuts}
+          >
+            Descargar cortes de caja
+          </button>
         </div>
       )}
 
@@ -64,7 +144,6 @@ export default function AdminReportsPage() {
             <ul className="space-y-3">
               {report.detalle_por_sucursal.map((s: any) => {
                 const ventas = s.ventas || {};
-
                 const meses = Object.keys(ventas);
                 const totalSucursal = meses.reduce(
                   (acc, mes) => acc + ventas[mes],
