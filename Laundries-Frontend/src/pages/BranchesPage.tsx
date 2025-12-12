@@ -112,6 +112,7 @@ export default function BranchesPage() {
       <EditEmployeeModal
         open={openEditEmployee}
         employee={selectedEmployee}
+        branches={branches}
         onClose={() => setOpenEditEmployee(false)}
         onSave={editEmployee}
       />
