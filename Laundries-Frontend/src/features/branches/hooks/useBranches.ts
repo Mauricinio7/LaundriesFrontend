@@ -6,16 +6,8 @@ import {
   createBranch,
 } from "../services/branches.service";
 
-type Branch = {
-  id: string;
-  nombre: string;
-  direccion: string;
-  telefono: string;
-  estado: boolean;
-};
-
 export function useBranches() {
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -36,9 +28,8 @@ export function useBranches() {
   }
 
   async function addBranch(payload: any) {
-    const newBranch = await createBranch(payload);
-
-    setBranches((prev) => [...prev, newBranch]); 
+    await createBranch(payload);
+    await load();
   }
 
   useEffect(() => {
@@ -51,6 +42,6 @@ export function useBranches() {
     editBranch,
     cancelBranch,
     addBranch,
-    reload: load,
+    reload: load,   
   };
 }

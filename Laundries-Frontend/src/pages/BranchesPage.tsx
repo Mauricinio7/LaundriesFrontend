@@ -9,13 +9,33 @@ import { EditEmployeeModal } from "../features/branches/components/EditEmployeeM
 import { EmployeesBySucursalModal } from "../features/branches/components/EmployeesBySucursalModal";
 import { AddBranchModal } from "../features/branches/components/AddBranchModal";
 
+import { registerManager } from "../features/branches/services/auth.service";
+import { createManager } from "../features/branches/services/employees.service";
+
+export interface Employee {
+  idEmpleado: string;
+  nombre: string;
+  direccion: string;
+  telefono: string;
+  dni: string;
+  fechaNacimiento: string;
+  idSucursal: string;
+}
+
+export interface AddBranchPayload {
+  nombre: string;
+  direccion: string;
+  telefono: string;
+}
+
 export default function BranchesPage() {
   const {
     branches,
     loading,
     editBranch,
     cancelBranch,
-    addBranch,        
+    addBranch,
+    reload,
   } = useBranches();
 
   const {
@@ -29,7 +49,7 @@ export default function BranchesPage() {
   const [openAddManager, setOpenAddManager] = useState(false);
   const [openEmployeesModal, setOpenEmployeesModal] = useState(false);
   const [openEditEmployee, setOpenEditEmployee] = useState(false);
-  const [openAddBranch, setOpenAddBranch] = useState(false); 
+  const [openAddBranch, setOpenAddBranch] = useState(false);
 
   const [selectedBranch, setSelectedBranch] = useState<any>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
@@ -38,7 +58,6 @@ export default function BranchesPage() {
 
   return (
     <div className="p-6 space-y-8">
-
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Sucursales</h1>
 
@@ -72,11 +91,10 @@ export default function BranchesPage() {
         ))}
       </div>
 
-
       <AddBranchModal
         open={openAddBranch}
         onClose={() => setOpenAddBranch(false)}
-        onCreate={async (payload: { nombre: string; direccion: string; telefono: string }) => {
+        onCreate={async (payload: AddBranchPayload) => {
           await addBranch(payload);
           setOpenAddBranch(false);
         }}
@@ -94,7 +112,40 @@ export default function BranchesPage() {
         open={openAddManager}
         branch={selectedBranch}
         onClose={() => setOpenAddManager(false)}
-        onCreate={() => {}}
+        onCreate={async (payload) => {
+          try {
+            const authResp = await registerManager({
+              email: payload.email,
+              password: payload.password,
+            });
+
+            const userId = authResp?.data?.id;
+
+            if (!userId) {
+              console.error("Respuesta authResp:", authResp);
+              throw new Error("auth-api no devolvió id del usuario");
+            }
+
+            await createManager({
+              nombre: payload.nombre,
+              telefono: payload.telefono,
+              direccion: payload.direccion,
+              dni: payload.dni,
+              fechaNacimiento: payload.fechaNacimiento,
+              idEmpleado: userId,
+              idSucursal: selectedBranch.id,
+            });
+
+            alert("Gerente creado correctamente");
+
+            await reload();
+
+            setOpenAddManager(false);
+          } catch (err) {
+            console.error(err);
+            alert("Error creando el gerente");
+          }
+        }}
       />
 
       <EmployeesBySucursalModal
@@ -103,7 +154,7 @@ export default function BranchesPage() {
         employees={employees}
         loading={loadingEmployees}
         onClose={() => setOpenEmployeesModal(false)}
-        onEditEmployee={(emp: any) => {
+        onEditEmployee={(emp: Employee) => {
           setSelectedEmployee(emp);
           setOpenEditEmployee(true);
         }}
