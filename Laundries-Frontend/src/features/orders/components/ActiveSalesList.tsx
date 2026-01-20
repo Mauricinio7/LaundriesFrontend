@@ -1,10 +1,23 @@
 import React, { useState, useEffect } from "react";
-import { getSaleDetails, type Sale, type OrderItem } from "../../../shared/lib/order.service";
+import {
+  getSaleDetails,
+  type Sale,
+  type OrderItem,
+} from "../../../shared/lib/order.service";
 import { getClient, type Client } from "../../../shared/lib/client.service";
-import { getEmployeesBySucursal, type Employee } from "../../../shared/lib/employee.service";
-import { getAllActiveServices, type Service } from "../../../shared/lib/service.service";
+import {
+  getEmployeesBySucursal,
+  type Employee,
+} from "../../../shared/lib/employee.service";
+import {
+  getAllActiveServices,
+  type Service,
+} from "../../../shared/lib/service.service";
 import { getBranchById } from "../../../shared/lib/branch.service";
-import { generateTicketPDF, type TicketData } from "../../../shared/lib/pdf.service";
+import {
+  generateTicketPDF,
+  type TicketData,
+} from "../../../shared/lib/pdf.service";
 
 export interface ActiveSalesListProps {
   sales: Sale[];
@@ -30,6 +43,64 @@ const getStatusColor = (estado: OrderItem["estado"]) => {
   }
 };
 
+// ✅ Parsear anotaciones con el formato: "Pago: X ; -- notas..."
+const parsePaymentNotes = (raw?: string | null) => {
+  const text = (raw ?? "").trim();
+  if (!text) return { paymentMethod: null as string | null, extraNotes: "" };
+
+  // Separa por ";--" con tolerancia a espacios: "; --", " ;-- ", etc.
+  const parts = text.split(/\s*;\s*--\s*/);
+
+  const left = (parts[0] ?? "").trim(); // "Pago: Efectivo" (idealmente)
+  const right = (parts.slice(1).join(" ; -- ") ?? "").trim(); // resto (por si vienen más separadores)
+
+  // Extraer método de pago si viene como "Pago: ..."
+  const paymentMatch = left.match(/^Pago:\s*(.+)$/i);
+  const paymentMethod = paymentMatch ? paymentMatch[1].trim() : null;
+
+  // Si no viene "Pago:" entonces tratamos todo como notas
+  if (!paymentMethod) {
+    return { paymentMethod: null, extraNotes: text };
+  }
+
+  return { paymentMethod, extraNotes: right };
+};
+
+// ✅ Parsear detalles de prendas con bloque INITCLOTHES/ENDCLOTHES
+// - clothes: lista de "Tipo : detalle"
+// - extra: SOLO lo que viene después de ENDCLOTHES (si existe)
+const parseClothesDetails = (raw?: string | null) => {
+  const text = (raw ?? "").trim();
+  if (!text) return { clothes: [] as string[], extra: "" };
+
+  const start = text.search(/INITCLOTHES\s*:/i);
+  const end = text.search(/ENDCLOTHES/i);
+
+  // Si no hay bloque, todo lo tratamos como "extra"
+  if (start === -1 || end === -1 || end <= start) {
+    return { clothes: [] as string[], extra: text };
+  }
+
+  // Parte dentro del bloque
+  const afterInit = text
+    .slice(start)
+    .replace(/^[\s\S]*?INITCLOTHES\s*:\s*/i, "");
+  const inside = afterInit.replace(/ENDCLOTHES[\s\S]*$/i, "").trim();
+
+  const clothes = inside
+    .split(/\s*;\s*--\s*/)
+    .map((p) => p.replace(/[\r\n]+/g, " ").trim())
+    .filter(Boolean);
+
+  // ✅ SOLO lo que viene después de ENDCLOTHES
+  const extra = text
+    .slice(end)
+    .replace(/^ENDCLOTHES\s*/i, "")
+    .trim();
+
+  return { clothes, extra };
+};
+
 export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
   sales,
   loading,
@@ -39,7 +110,7 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
   const [saleDetails, setSaleDetails] = useState<Record<string, Sale>>({});
   const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
-  
+
   // Estados para datos humanos
   const [clients, setClients] = useState<Record<number, Client>>({});
   const [employees, setEmployees] = useState<Record<string, Employee>>({});
@@ -53,6 +124,7 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
     if (idSucursal && !hideEmployeeInfo) {
       loadEmployees();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idSucursal, hideEmployeeInfo]);
 
   // Cargar servicios al montar
@@ -65,6 +137,7 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
     if (sales.length > 0) {
       loadClients();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sales]);
 
   const loadEmployees = async () => {
@@ -88,18 +161,16 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
   const loadClients = async () => {
     try {
       setLoadingClients(true);
-      // Extraer IDs únicos de clientes
+
       const uniqueClientIds = [
         ...new Set(sales.map((sale) => sale.id_cliente)),
       ].filter((id) => id && !clients[id]);
 
       if (uniqueClientIds.length === 0) return;
 
-      // Cargar todos los clientes en paralelo
       const clientPromises = uniqueClientIds.map((id) => getClient(id));
       const clientsData = await Promise.all(clientPromises);
 
-      // Crear mapa de clientes
       const clientsMap: Record<number, Client> = { ...clients };
       clientsData.forEach((client) => {
         clientsMap[client.id] = client;
@@ -128,7 +199,7 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
 
   const loadBranchName = async (branchId: string | number) => {
     if (branches[String(branchId)]) return branches[String(branchId)];
-    
+
     try {
       const branch = await getBranchById(String(branchId));
       setBranches((prev) => ({ ...prev, [String(branchId)]: branch.nombre }));
@@ -141,7 +212,6 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
 
   const handleDownloadTicket = async (sale: Sale) => {
     try {
-      // Obtener detalles completos de la venta si no están cargados
       let saleData = sale;
       if (!sale.items || sale.items.length === 0) {
         saleData = await getSaleDetails(sale.id);
@@ -149,11 +219,9 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
 
       const client = clients[saleData.id_cliente];
       const employee = employees[saleData.id_empleado] || { nombre: "N/A" };
-      
-      // Obtener nombre de la sucursal
+
       const branchName = await loadBranchName(saleData.id_sucursal);
 
-      // Construir datos del ticket
       const ticketData: TicketData = {
         codigo: saleData.codigo_recogida,
         fecha: saleData.fecha_recepcion,
@@ -186,28 +254,27 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
 
   const toggleSale = async (saleId: string) => {
     if (expandedSales.has(saleId)) {
-      // Cerrar
       const newExpanded = new Set(expandedSales);
       newExpanded.delete(saleId);
       setExpandedSales(newExpanded);
-    } else {
-      // Abrir y cargar detalles si no están cargados
-      setExpandedSales(new Set([...expandedSales, saleId]));
+      return;
+    }
 
-      if (!saleDetails[saleId]) {
-        setLoadingDetails(new Set([...loadingDetails, saleId]));
-        try {
-          const details = await getSaleDetails(saleId);
-          setSaleDetails((prev) => ({ ...prev, [saleId]: details }));
-        } catch (error) {
-          console.error("Error al cargar detalles:", error);
-        } finally {
-          setLoadingDetails((prev) => {
-            const newSet = new Set(prev);
-            newSet.delete(saleId);
-            return newSet;
-          });
-        }
+    setExpandedSales(new Set([...expandedSales, saleId]));
+
+    if (!saleDetails[saleId]) {
+      setLoadingDetails(new Set([...loadingDetails, saleId]));
+      try {
+        const details = await getSaleDetails(saleId);
+        setSaleDetails((prev) => ({ ...prev, [saleId]: details }));
+      } catch (error) {
+        console.error("Error al cargar detalles:", error);
+      } finally {
+        setLoadingDetails((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(saleId);
+          return newSet;
+        });
       }
     }
   };
@@ -240,6 +307,10 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
         const client = clients[sale.id_cliente];
         const employee = employees[sale.id_empleado];
 
+        const { paymentMethod, extraNotes } = parsePaymentNotes(
+          details.anotaciones_generales,
+        );
+
         return (
           <div
             key={sale.id}
@@ -250,7 +321,6 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
               className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
             >
               <div className="flex-1 text-left">
-                {/* Header: Nombre Cliente | Código */}
                 <div className="flex items-center gap-3 mb-2">
                   {client ? (
                     <div className="flex items-center gap-2">
@@ -274,29 +344,33 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
                   ) : loadingClients ? (
                     <span className="text-sm text-gray-400">Cargando...</span>
                   ) : (
-                    <span className="text-sm text-gray-400">Cliente #{sale.id_cliente}</span>
+                    <span className="text-sm text-gray-400">
+                      Cliente #{sale.id_cliente}
+                    </span>
                   )}
                   <span className="text-gray-400">|</span>
                   <span className="font-semibold text-gray-700">
                     Código: {sale.codigo_recogida}
                   </span>
                   <span className="text-sm text-gray-500">
-                    {new Date(sale.fecha_recepcion).toLocaleDateString("es-ES", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
+                    {new Date(sale.fecha_recepcion).toLocaleDateString(
+                      "es-ES",
+                      {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      },
+                    )}
                   </span>
                 </div>
 
-                {/* Body: Estados de items */}
                 {sale.items && sale.items.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {sale.items.map((item) => (
                       <span
                         key={item.id}
                         className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(
-                          item.estado
+                          item.estado,
                         )}`}
                       >
                         {item.estado}
@@ -305,6 +379,7 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
                   </div>
                 )}
               </div>
+
               <svg
                 className={`w-5 h-5 text-gray-400 transition-transform ${
                   isExpanded ? "transform rotate-180" : ""
@@ -322,8 +397,11 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
               </svg>
             </button>
 
-            {/* Footer: Total | Atendido por (solo si no está oculto) | Botón Descargar */}
-            <div className={`border-t border-gray-200 px-6 py-3 bg-gray-50 flex ${hideEmployeeInfo ? 'justify-between' : 'justify-between'} items-center text-sm gap-3`}>
+            <div
+              className={`border-t border-gray-200 px-6 py-3 bg-gray-50 flex ${
+                hideEmployeeInfo ? "justify-between" : "justify-between"
+              } items-center text-sm gap-3`}
+            >
               <div className="flex items-center gap-2">
                 <svg
                   className="w-4 h-4 text-gray-500"
@@ -342,6 +420,7 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
                   Total: ${Number(sale.costo_total).toFixed(2)}
                 </span>
               </div>
+
               <div className="flex items-center gap-3">
                 {!hideEmployeeInfo && (
                   <div className="flex items-center gap-2">
@@ -372,6 +451,7 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
                     </span>
                   </div>
                 )}
+
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -403,7 +483,9 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
                 {isLoadingDetails ? (
                   <div className="flex items-center justify-center py-4">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                    <span className="ml-2 text-gray-600">Cargando detalles...</span>
+                    <span className="ml-2 text-gray-600">
+                      Cargando detalles...
+                    </span>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -412,6 +494,7 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
                         <h4 className="font-semibold text-gray-900 mb-3">
                           Prendas ({details.items.length})
                         </h4>
+
                         <div className="space-y-3">
                           {details.items.map((item) => (
                             <div
@@ -429,30 +512,66 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
                                 </div>
                                 <span
                                   className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                                    item.estado
+                                    item.estado,
                                   )}`}
                                 >
                                   {item.estado}
                                 </span>
                               </div>
-                              {item.detalles_prendas && (
-                                <p className="text-sm text-gray-600 mt-2">
-                                  {item.detalles_prendas}
-                                </p>
-                              )}
+
+                              {item.detalles_prendas &&
+                                (() => {
+                                  const { clothes, extra } =
+                                    parseClothesDetails(item.detalles_prendas);
+
+                                  return (
+                                    <div className="mt-2 space-y-2">
+                                      {clothes.length > 0 && (
+                                        <div>
+                                          <p className="text-xs font-medium text-gray-700 mb-1">
+                                            Prendas:
+                                          </p>
+                                          <ul className="list-disc pl-5 text-sm text-gray-600 space-y-1">
+                                            {clothes.map((c, idx) => (
+                                              <li key={idx}>{c}</li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      )}
+
+                                      <div>
+                                        <p className="text-xs font-medium text-gray-700 mb-1">
+                                          Notas extra:
+                                        </p>
+                                        {extra ? (
+                                          <p className="text-sm text-gray-600 whitespace-pre-line">
+                                            {extra}
+                                          </p>
+                                        ) : (
+                                          <p className="text-sm text-gray-400">
+                                            (Sin notas extra)
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+
                               <div className="mt-2 flex justify-between text-sm">
                                 <span className="text-gray-600">
-                                  Precio: ${Number(item.precio_aplicado).toFixed(2)}/kg
+                                  Precio: $
+                                  {Number(item.precio_aplicado).toFixed(2)}/kg
                                 </span>
                                 <span className="font-medium text-gray-900">
                                   Subtotal: ${Number(item.subtotal).toFixed(2)}
                                 </span>
                               </div>
+
                               {item.fecha_entrega_estimada && (
                                 <p className="text-xs text-gray-500 mt-2">
                                   Entrega estimada:{" "}
                                   {new Date(
-                                    item.fecha_entrega_estimada
+                                    item.fecha_entrega_estimada,
                                   ).toLocaleDateString("es-ES")}
                                 </p>
                               )}
@@ -461,16 +580,33 @@ export const ActiveSalesList: React.FC<ActiveSalesListProps> = ({
                         </div>
                       </div>
                     ) : (
-                      <p className="text-gray-500">No hay items en esta venta</p>
+                      <p className="text-gray-500">
+                        No hay items en esta venta
+                      </p>
                     )}
+
                     {details.anotaciones_generales && (
                       <div className="mt-4">
                         <h4 className="font-semibold text-gray-900 mb-2">
                           Anotaciones
                         </h4>
-                        <p className="text-sm text-gray-600">
-                          {details.anotaciones_generales}
-                        </p>
+
+                        {paymentMethod && (
+                          <p className="text-sm text-gray-700 mb-1">
+                            <span className="font-medium">Método de pago:</span>{" "}
+                            {paymentMethod}
+                          </p>
+                        )}
+
+                        {extraNotes ? (
+                          <p className="text-sm text-gray-600 whitespace-pre-line">
+                            {extraNotes}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-gray-400">
+                            (Sin notas adicionales)
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>

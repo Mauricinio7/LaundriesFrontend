@@ -1,9 +1,19 @@
 import React, { useState, useEffect } from "react";
-import { getAllActiveServices, type Service } from "../../../shared/lib/service.service";
-import { createOrder, type CreateOrderData, type Sale } from "../../../shared/lib/order.service";
+import {
+  getAllActiveServices,
+  type Service,
+} from "../../../shared/lib/service.service";
+import {
+  createOrder,
+  type CreateOrderData,
+  type Sale,
+} from "../../../shared/lib/order.service";
 import { getEmployeesBySucursal } from "../../../shared/lib/employee.service";
 import { getBranchById } from "../../../shared/lib/branch.service";
-import { generateTicketPDF, type TicketData } from "../../../shared/lib/pdf.service";
+import {
+  generateTicketPDF,
+  type TicketData,
+} from "../../../shared/lib/pdf.service";
 import type { Client } from "../../../shared/lib/client.service";
 
 interface CreateOrderModalProps {
@@ -15,13 +25,71 @@ interface CreateOrderModalProps {
   onSuccess: () => void;
 }
 
+// ✅ NUEVO: detalle por prenda (color -> detalle)
+interface PrendaDetalle {
+  tipo: string;
+  detalle: string; // antes: color
+}
+
 interface OrderItem {
   idServicio: number;
   pesoKg: number;
   numeroPrendas: number;
+
+  // ✅ N prendas exactas
+  prendas: PrendaDetalle[];
+
+  // ✅ notas extra del item (van después del bloque)
   detalles: string;
+
   fechaEntrega: string;
 }
+
+// ✅ Método de pago
+type PaymentMethod = "EFECTIVO" | "TARJETA";
+const PAYMENT_PREFIX_REGEX = /^Pago:\s*(Efectivo|Tarjeta)\s*;\s*--\s*/i;
+
+const buildAnotacionesToSave = (method: PaymentMethod, rawNotes: string) => {
+  const cleaned = (rawNotes || "").replace(PAYMENT_PREFIX_REGEX, "").trim();
+  const label = method === "EFECTIVO" ? "Efectivo" : "Tarjeta";
+  return cleaned ? `Pago: ${label} ; -- ${cleaned}` : `Pago: ${label} ; --`;
+};
+
+// ✅ NUEVO FORMATO requerido:
+//
+// INITCLOTHES:
+// Pantalon : rojo ;--
+// Chamarra : azul ;--
+// Camisa : verde ;--
+//
+// ENDCLOTHES
+//
+// (y abajo, si hay, detalles extra)
+//
+// Reglas:
+// - Cada prenda separada por " ;--" (una por línea)
+// - Tipo y detalle separados por " : " (con espacios)
+const buildDetallesPrendas = (
+  prendas: PrendaDetalle[],
+  extraDetalles: string,
+) => {
+  const lines = prendas
+    .map((p) => {
+      const tipo = (p.tipo || "").trim();
+      const detalle = (p.detalle || "").trim();
+      if (!tipo || !detalle) return "";
+      return `${tipo} : ${detalle} ;--`;
+    })
+    .filter(Boolean);
+
+  const block =
+    `INITCLOTHES:\n` +
+    (lines.length ? lines.join("\n") + "\n" : "") +
+    `\nENDCLOTHES`;
+
+  const extra = (extraDetalles || "").trim();
+  return extra ? `${block}\n\n${extra}` : block;
+};
 
 export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   isOpen,
@@ -33,15 +101,19 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
 }) => {
   const [services, setServices] = useState<Service[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
+
   const [items, setItems] = useState<OrderItem[]>([
     {
       idServicio: 0,
       pesoKg: 0,
       numeroPrendas: 0,
+      prendas: [],
       detalles: "",
       fechaEntrega: "",
     },
   ]);
+
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("EFECTIVO");
   const [anotaciones, setAnotaciones] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +121,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [employeeName, setEmployeeName] = useState<string>("");
   const [branchName, setBranchName] = useState<string>("");
-  const [savedFormItems, setSavedFormItems] = useState<OrderItem[]>([]); // Guardar items del formulario
+  const [savedFormItems, setSavedFormItems] = useState<OrderItem[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -57,6 +129,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       loadEmployeeName();
       loadBranchName();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, idSucursal, idEmpleado]);
 
   const loadServices = async () => {
@@ -66,7 +139,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       setServices(activeServices);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Error al cargar los servicios"
+        err instanceof Error ? err.message : "Error al cargar los servicios",
       );
     } finally {
       setLoadingServices(false);
@@ -77,10 +150,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     if (!idSucursal || !idEmpleado) return;
     try {
       const employees = await getEmployeesBySucursal(idSucursal);
-      const employee = employees.find((emp) => String(emp.id) === String(idEmpleado));
-      if (employee) {
-        setEmployeeName(employee.nombre);
-      }
+      const employee = employees.find(
+        (emp) => String(emp.id) === String(idEmpleado),
+      );
+      if (employee) setEmployeeName(employee.nombre);
     } catch (err) {
       console.error("Error al cargar nombre del empleado:", err);
     }
@@ -93,7 +166,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       setBranchName(branch.nombre);
     } catch (err) {
       console.error("Error al cargar nombre de la sucursal:", err);
-      setBranchName(`Sucursal ${idSucursal}`); // Fallback
+      setBranchName(`Sucursal ${idSucursal}`);
     }
   };
 
@@ -104,6 +177,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         idServicio: 0,
         pesoKg: 0,
         numeroPrendas: 0,
+        prendas: [],
         detalles: "",
         fechaEntrega: "",
       },
@@ -114,10 +188,60 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     setItems(items.filter((_, i) => i !== index));
   };
 
-  const updateItem = (index: number, field: keyof OrderItem, value: string | number) => {
+  const updateItem = (
+    index: number,
+    field: keyof OrderItem,
+    value: string | number | PrendaDetalle[],
+  ) => {
     const newItems = [...items];
-    newItems[index] = { ...newItems[index], [field]: value };
+    newItems[index] = { ...newItems[index], [field]: value as any };
     setItems(newItems);
+  };
+
+  // ✅ ajusta el arreglo prendas al tamaño exacto numeroPrendas
+  const updateNumeroPrendas = (index: number, newValue: number) => {
+    const num = Number.isFinite(newValue)
+      ? Math.max(0, Math.floor(newValue))
+      : 0;
+
+    setItems((prev) => {
+      const copy = [...prev];
+      const item = copy[index];
+      const prendas = [...(item.prendas || [])];
+
+      if (prendas.length < num) {
+        for (let i = prendas.length; i < num; i++) {
+          prendas.push({ tipo: "", detalle: "" });
+        }
+      } else if (prendas.length > num) {
+        prendas.length = num;
+      }
+
+      copy[index] = { ...item, numeroPrendas: num, prendas };
+      return copy;
+    });
+  };
+
+  // ✅ actualizar tipo/detalle de una prenda
+  const updatePrenda = (
+    itemIndex: number,
+    prendaIndex: number,
+    field: keyof PrendaDetalle,
+    value: string,
+  ) => {
+    setItems((prev) => {
+      const copy = [...prev];
+      const item = copy[itemIndex];
+      const prendas = [...(item.prendas || [])];
+
+      prendas[prendaIndex] = {
+        ...prendas[prendaIndex],
+        [field]: value,
+      };
+
+      copy[itemIndex] = { ...item, prendas };
+      return copy;
+    });
   };
 
   const validateForm = (): boolean => {
@@ -128,6 +252,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
+
       if (!item.idServicio || item.idServicio === 0) {
         setError(`El item ${i + 1} debe tener un servicio seleccionado`);
         return false;
@@ -140,6 +265,23 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         setError(`El item ${i + 1} debe tener al menos una prenda`);
         return false;
       }
+
+      if (!item.prendas || item.prendas.length !== item.numeroPrendas) {
+        setError(
+          `El item ${i + 1} debe capturar el detalle de todas las prendas`,
+        );
+        return false;
+      }
+
+      for (let j = 0; j < item.prendas.length; j++) {
+        const p = item.prendas[j];
+        if (!p.tipo?.trim() || !p.detalle?.trim()) {
+          setError(
+            `En el item ${i + 1}, la prenda ${j + 1} debe tener tipo y detalle`,
+          );
+          return false;
+        }
+      }
     }
 
     return true;
@@ -149,91 +291,86 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     e.preventDefault();
     setError(null);
 
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     try {
       setIsSubmitting(true);
+
+      const anotacionesToSave = buildAnotacionesToSave(
+        paymentMethod,
+        anotaciones,
+      );
 
       const orderData: CreateOrderData = {
         idCliente: client.id,
         idSucursal,
         idEmpleado,
-        anotaciones: anotaciones.trim() || undefined,
+        anotaciones: anotacionesToSave.trim() || undefined,
         items: items.map((item) => ({
           idServicio: item.idServicio,
           pesoKg: item.pesoKg,
           numeroPrendas: item.numeroPrendas,
-          detalles: item.detalles.trim() || undefined,
+          // ✅ aquí va INITCLOTHES con "tipo : detalle ;--" + (opcional) notas extra
+          detalles:
+            buildDetallesPrendas(item.prendas, item.detalles) || undefined,
           fechaEntrega: item.fechaEntrega || undefined,
         })),
       };
 
-      // Guardar items del formulario antes de crear la orden (copia profunda)
-      const formItemsCopy = items.map(item => ({ ...item }));
+      const formItemsCopy = items.map((item) => ({
+        ...item,
+        prendas: item.prendas.map((p) => ({ ...p })),
+      }));
       setSavedFormItems(formItemsCopy);
-      
+
       const newOrder = await createOrder(orderData);
-      
-      // Construir items desde el formulario siempre (más confiable)
+
+      // Construir items desde el formulario (fallback)
       const servicesMap: Record<number, Service> = {};
       services.forEach((service) => {
         servicesMap[service.id] = service;
       });
-      
-      // Construir items desde el formulario
+
       const constructedItems = formItemsCopy.map((item) => {
         const service = servicesMap[item.idServicio];
         const precio = Number(service?.precio_por_kilo || 0);
         return {
-          id: 0, // Temporal, se asignará cuando se obtengan los detalles
+          id: 0,
           id_venta: newOrder.id,
           id_servicio: item.idServicio,
           numero_prendas: item.numeroPrendas,
           peso_kg: item.pesoKg,
           precio_aplicado: precio,
           subtotal: precio * item.pesoKg,
-          detalles_prendas: item.detalles || undefined,
+          detalles_prendas:
+            buildDetallesPrendas(item.prendas, item.detalles) || undefined,
           estado: "RECIBIDO" as const,
           fecha_entrega_estimada: item.fechaEntrega || undefined,
         };
       });
-      
-      // Si la orden incluye items del backend, usarlos; si no, usar los construidos
+
       let orderWithItems = newOrder;
       if (!newOrder.items || newOrder.items.length === 0) {
-        // Esperar un momento para que el backend procese
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
+        await new Promise((resolve) => setTimeout(resolve, 500));
         try {
-          const { getSaleDetails } = await import("../../../shared/lib/order.service");
+          const { getSaleDetails } =
+            await import("../../../shared/lib/order.service");
           const details = await getSaleDetails(newOrder.id);
-          // Si los detalles tienen items, usarlos; si no, usar los construidos
           if (details.items && details.items.length > 0) {
             orderWithItems = details;
           } else {
-            orderWithItems = {
-              ...newOrder,
-              items: constructedItems,
-            };
+            orderWithItems = { ...newOrder, items: constructedItems };
           }
         } catch (err) {
           console.error("Error al obtener detalles de la venta:", err);
-          // Usar items construidos desde el formulario
-          orderWithItems = {
-            ...newOrder,
-            items: constructedItems,
-          };
+          orderWithItems = { ...newOrder, items: constructedItems };
         }
       }
-      
+
       setCreatedOrder(orderWithItems);
       setShowSuccessModal(true);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Error al crear la orden"
-      );
+      setError(err instanceof Error ? err.message : "Error al crear la orden");
     } finally {
       setIsSubmitting(false);
     }
@@ -245,11 +382,15 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         idServicio: 0,
         pesoKg: 0,
         numeroPrendas: 0,
+        prendas: [],
         detalles: "",
         fechaEntrega: "",
       },
     ]);
+
+    setPaymentMethod("EFECTIVO");
     setAnotaciones("");
+
     setError(null);
     setCreatedOrder(null);
     setShowSuccessModal(false);
@@ -260,21 +401,22 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const handleDownloadTicket = async () => {
     if (!createdOrder) return;
 
-    // Asegurarse de tener los items completos
     let orderWithItems = createdOrder;
     if (!createdOrder.items || createdOrder.items.length === 0) {
       try {
-        const { getSaleDetails } = await import("../../../shared/lib/order.service");
+        const { getSaleDetails } =
+          await import("../../../shared/lib/order.service");
         orderWithItems = await getSaleDetails(createdOrder.id);
       } catch (err) {
         console.error("Error al obtener detalles:", err);
-        // Si falla, construir desde los items guardados del formulario
+
         const servicesMap: Record<number, Service> = {};
         services.forEach((service) => {
           servicesMap[service.id] = service;
         });
-        
+
         const formItems = savedFormItems.length > 0 ? savedFormItems : items;
+
         orderWithItems = {
           ...createdOrder,
           items: formItems.map((item) => {
@@ -288,7 +430,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               peso_kg: item.pesoKg,
               precio_aplicado: precio,
               subtotal: precio * item.pesoKg,
-              detalles_prendas: item.detalles || undefined,
+              detalles_prendas:
+                buildDetallesPrendas(item.prendas, item.detalles) || undefined,
               estado: "RECIBIDO" as const,
               fecha_entrega_estimada: item.fechaEntrega || undefined,
             };
@@ -297,13 +440,11 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       }
     }
 
-    // Crear mapa de servicios para buscar nombres
     const servicesMap: Record<number, Service> = {};
     services.forEach((service) => {
       servicesMap[service.id] = service;
     });
 
-    // Construir datos del ticket
     const ticketData: TicketData = {
       codigo: orderWithItems.codigo_recogida,
       fecha: orderWithItems.fecha_recepcion,
@@ -327,19 +468,13 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       anotaciones: orderWithItems.anotaciones_generales,
     };
 
-    // Validar que hay items antes de generar
     if (ticketData.items.length === 0) {
-      console.error("No hay items para el ticket:", {
-        orderWithItems,
-        savedFormItems,
-        items,
-        services,
-      });
-      alert("Error: No se pudieron cargar los items de la orden. Por favor, intente descargar el ticket desde la lista de ventas activas.");
+      alert(
+        "Error: No se pudieron cargar los items de la orden. Por favor, intente descargar el ticket desde la lista de ventas activas.",
+      );
       return;
     }
 
-    console.log("Generando ticket con items:", ticketData.items);
     generateTicketPDF(ticketData);
   };
 
@@ -358,9 +493,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         <div className="p-6">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                Nueva Venta
-              </h2>
+              <h2 className="text-2xl font-bold text-gray-900">Nueva Venta</h2>
               <p className="text-sm text-gray-600 mt-1">
                 Cliente: {client.nombre} - {client.correo}
               </p>
@@ -406,6 +539,22 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Método de pago
+              </label>
+              <select
+                value={paymentMethod}
+                onChange={(e) =>
+                  setPaymentMethod(e.target.value as PaymentMethod)
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="EFECTIVO">Efectivo</option>
+                <option value="TARJETA">Tarjeta</option>
+              </select>
+            </div>
+
+            <div>
               <div className="flex justify-between items-center mb-3">
                 <label className="block text-sm font-medium text-gray-700">
                   Items de la Orden
@@ -448,7 +597,11 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                         <select
                           value={item.idServicio}
                           onChange={(e) =>
-                            updateItem(index, "idServicio", Number(e.target.value))
+                            updateItem(
+                              index,
+                              "idServicio",
+                              Number(e.target.value),
+                            )
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           required
@@ -456,7 +609,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                           <option value={0}>Seleccionar servicio</option>
                           {services.map((service) => (
                             <option key={service.id} value={service.id}>
-                              {service.nombre} - ${Number(service.precio_por_kilo).toFixed(2)}/kg
+                              {service.nombre} - $
+                              {Number(service.precio_por_kilo).toFixed(2)}/kg
                             </option>
                           ))}
                         </select>
@@ -488,11 +642,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                           min="1"
                           value={item.numeroPrendas}
                           onChange={(e) =>
-                            updateItem(
-                              index,
-                              "numeroPrendas",
-                              Number(e.target.value)
-                            )
+                            updateNumeroPrendas(index, Number(e.target.value))
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           required
@@ -513,9 +663,70 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                         />
                       </div>
 
+                      {/* ✅ Inputs dinámicos por prenda (Tipo + Detalle de la prenda) */}
+                      {item.numeroPrendas > 0 && (
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Detalle por prenda (obligatorio)
+                          </label>
+
+                          <div className="space-y-2">
+                            {item.prendas.map((p, pIndex) => (
+                              <div
+                                key={pIndex}
+                                className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white border border-gray-200 rounded-lg p-3"
+                              >
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                                    Prenda {pIndex + 1} - Tipo *
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={p.tipo}
+                                    onChange={(e) =>
+                                      updatePrenda(
+                                        index,
+                                        pIndex,
+                                        "tipo",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Ej: Pantalón"
+                                    required
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                                    Prenda {pIndex + 1} - Detalle de la prenda *
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={p.detalle}
+                                    onChange={(e) =>
+                                      updatePrenda(
+                                        index,
+                                        pIndex,
+                                        "detalle",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Ej: rojo"
+                                    required
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Notas extra del item (van después del bloque) */}
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Detalles de las Prendas
+                          Detalles adicionales del item (opcional)
                         </label>
                         <textarea
                           value={item.detalles}
@@ -524,7 +735,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                           }
                           rows={2}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Ej: Ropa color, tipo de prenda, etc."
+                          placeholder="Ej: Manchas, instrucciones especiales, etc."
                         />
                       </div>
                     </div>
@@ -554,7 +765,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         </div>
       </div>
 
-      {/* Modal de éxito con opción de descargar ticket */}
+      {/* Modal éxito */}
       {showSuccessModal && createdOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
@@ -578,7 +789,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                 ¡Venta creada exitosamente!
               </h3>
               <p className="text-sm text-gray-600 mb-1">
-                Código de recogida: <span className="font-bold">{createdOrder.codigo_recogida}</span>
+                Código de recogida:{" "}
+                <span className="font-bold">
+                  {createdOrder.codigo_recogida}
+                </span>
               </p>
               <p className="text-sm text-gray-500">
                 Total: ${Number(createdOrder.costo_total).toFixed(2)}
@@ -618,4 +832,3 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     </div>
   );
 };
-
